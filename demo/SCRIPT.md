@@ -119,6 +119,21 @@ make eval        # (or already run; results persist)
 
 ---
 
+## Backup recording (do this during rehearsal)
+
+The demo runs **entirely offline** (only the classifier touches the network, and
+it has a deterministic fallback), so a dead venue network cannot break it. Still,
+capture a backup once during rehearsal in case a machine fails on the day:
+
+1. `make down && make demo` (cold start), open both browser panes.
+2. Start a full-screen QuickTime screen recording (⌘⇧5 on macOS).
+3. Run `make act1`, `make act2`, `make act3` (approve + undo in the console),
+   then open the **Eval** tab — the whole sequence, ~6 minutes.
+4. Save it as `demo/recordings/agamemnon-backup.mov` (that folder is gitignored).
+
+Rehearse the full sequence ~5 times with `make reset` between runs so the timing
+and clicks are muscle memory.
+
 ## Reset / recovery
 
 - `make reset` — cold state (board 412,000, console feed cleared) in seconds.
