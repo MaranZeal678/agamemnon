@@ -1,0 +1,17 @@
+{
+  "name": "agamemnon-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Agamemnon — the watcher at the gate. Monorepo: the product + the fictional customer.",
+  "workspaces": [
+    "packages/agamemnon",
+    "packages/agamemnon/adapter",
+    "packages/agamemnon/console",
+    "packages/agamemnon/eval",
+    "packages/meridian/agent",
+    "packages/meridian/web"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
