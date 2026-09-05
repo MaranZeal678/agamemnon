@@ -67,7 +67,7 @@ through Agamemnon."
 make act2
 ```
 
-- Middle: identical reasoning… then **⛔ BLOCKED BY AGAMEMNON**.
+- Middle: identical reasoning, then **BLOCKED BY AGAMEMNON**.
 - Right pane (console) lights up. Click the red **postgres.delete** action:
   - **Proposed SQL** — point at the highlighted bug: `l.id::text` (should be `l.ref`).
   - **412,000 rows measured** vs the agent's claimed 1,210 — **340× its median**.

@@ -1,238 +1,229 @@
-<h1 align="center">🏛 &nbsp;AGAMEMNON</h1>
-<p align="center"><b>The watcher at the gate — and the gate is the write path.</b></p>
-<p align="center"><i>A safety layer that sits between an AI agent and your production database, so an autonomous agent can never quietly delete your company.</i></p>
+<h1 align="center">AGAMEMNON</h1>
+<p align="center"><b>A safety layer between an AI agent and your production database.</b></p>
+<p align="center">So an autonomous agent can't quietly delete your company — even when it's fully authorised.</p>
 
 <p align="center">
-  <img src="docs/assets/convex.svg" height="46" alt="Convex">
+  <img src="docs/assets/convex.svg" height="44" alt="Convex">
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/assets/nebius.svg" height="46" alt="Nebius">
+  <img src="docs/assets/nebius.svg" height="44" alt="Nebius">
 </p>
 
-<p align="center">
-  <b>Built on <a href="https://convex.dev">Convex</a> and <a href="https://nebius.com">Nebius</a> — and with the help of both.</b><br/>
-  <sub>Convex is the entire spine (data, durable workflow, reactive UI, file storage). Nebius Token Factory provides every model.</sub>
-</p>
-
-<p align="center">
-  <img alt="Convex" src="https://img.shields.io/badge/backend-Convex-F3672A?style=flat-square">
-  <img alt="Nebius" src="https://img.shields.io/badge/models-Nebius%20Token%20Factory-C6F24E?style=flat-square&labelColor=06283A">
-  <img alt="Postgres" src="https://img.shields.io/badge/data-PostgreSQL%2014-336791?style=flat-square">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square">
-  <img alt="offline" src="https://img.shields.io/badge/demo-runs%20offline-2ea44f?style=flat-square">
-</p>
+<p align="center"><b>Built on Convex and Nebius, with the help of both.</b><br>
+<sub>Convex runs the entire backend. Nebius Token Factory runs every AI model.</sub></p>
 
 ---
 
-## The problem
+## What it is, in one minute
 
-In 2026, researchers documented at least **nine** cases where an autonomous agent
-deleted a company's live data on its own. Every time, the agent was **authorised** —
-so no monitoring tool flagged anything while it happened. Dashboards stayed green
-while the database emptied.
+AI agents are being handed real passwords to real databases. In 2026, researchers
+recorded at least nine cases where an agent deleted a company's live data on its own.
+Every time, the agent was *allowed* to do it, so no alarm ever went off.
 
-The failure isn't the model. It's that **the agent holds the production credential.**
+Agamemnon fixes the root cause: **it takes the database password away from the agent.**
+The agent can no longer touch the database directly. Instead, every attempted change
+becomes a **request** that Agamemnon reviews before anything happens.
 
-## The idea
+For each request, Agamemnon:
 
-Agamemnon takes the credential away from the agent and puts a gate on the write path.
-**Every write becomes a proposal** that is:
+1. **Writes it down first** — the request and its audit record are saved together, so
+   there's always a paper trail.
+2. **Checks how big it really is** — it counts, with its own database access, exactly how
+   many rows would be affected. Not the number the agent claims — the real number.
+3. **Applies simple rules** — plain, readable rules decide allow / needs-approval / block.
+   An AI model gives a second opinion, but it can only make a decision *stricter*, never
+   looser.
+4. **Takes a backup before deleting** — the exact rows are saved first, so anything can be
+   undone in seconds.
+5. **Uses a one-time key** — the actual delete runs with a key minted for that single
+   action, then thrown away.
 
-| Step | Guarantee |
+The result: a runaway agent gets stopped, a reasonable change gets a human's yes, and a
+mistake can be undone — all on the record.
+
+---
+
+## The demo
+
+The demo tells a story on **one screen with three panes**:
+
+| Pane | What it is | Open this |
+|---|---|---|
+| **Left** | Meridian Freight's dispatch board (a fake customer) | `http://localhost:5173/#/dispatch` |
+| **Middle** | The AI agent's terminal | your terminal |
+| **Right** | The Agamemnon console (our product) | `http://localhost:5174` |
+
+Start everything, then run one command per act:
+
+```bash
+make demo     # starts the backend + both websites
+make act1     # Act 1
+make act2     # Act 2
+make act3     # Act 3
+make eval     # Act 4 numbers (already loaded in the console)
+make reset    # back to a clean start (a few seconds)
+```
+
+### How to present it — tab by tab, and what to say
+
+**Set the scene (left pane).** Open the dispatch board. *"This is Meridian Freight. 412,000
+active shipments, live from their real database. Every night an AI agent cleans up old
+records. Watch the health monitors along the top — all green."*
+
+**Act 1 — no protection (run `make act1`).** *"Tonight a column got renamed. Let's run the
+cleanup."* The agent (middle pane) tries its usual query, it fails, it improvises a new one
+— and the new one is subtly wrong. **Watch the left pane: the counter drops from 412,000 to
+0 in real time.** *"412,000 records, gone. Now look at the monitors — still all green. Their
+own tools never noticed."* This is the whole problem in one image.
+
+**Act 2 — with Agamemnon (run `make act2`).** *"Same agent. But now it has no database
+password at all."* It reasons the same way and makes the same mistake — but this time the
+middle pane says **BLOCKED**. Switch to the right pane (console) and click the red row:
+*"Agamemnon measured the real size: 412,000 rows, when the agent thought it was deleting
+about 1,200. That's 340 times its normal night. Here are the rules it broke, by name."*
+Point at the left pane: *"The board never moved."* Click **Deny**, add a note — the agent
+exits cleanly.
+
+**Act 3 — a reasonable request (run `make act3`).** *"Now a normal cleanup — 900 old
+records."* The agent asks and waits. The right pane shows it **waiting for approval**. Read
+the request: it's genuinely small and safe. Click **Approve**. **The board drops by 900 —
+real rows, really deleted.** Then: *"A dispatcher calls — those were still needed."* Click
+**Undo**. **The board climbs back to 412,000** in a few seconds, and the undo appears in the
+log as its own recorded action.
+
+**Act 4 — the proof (right pane, Eval tab).** Show the scoreboard: *"Our small, cheap model
+catches every dangerous delete — matching a top-tier model — at a fifth of the cost."*
+
+**One line to close:** *"The agent never held the key. Every change was written down,
+measured, checked against readable rules, and reversible. That's Agamemnon."*
+
+Full timed script: [demo/SCRIPT.md](demo/SCRIPT.md).
+
+---
+
+## Proof it works
+
+Everything below is **measured on real hardware against a real database**, not claimed.
+
+**The AI reviewer is small, cheap, fast — and doesn't miss.** Scored on a held-out set of
+48 labelled changes (including hand-written trick cases like deletes disguised as small
+updates, and limits that secretly match the whole table):
+
+| Model reviewing the change | Catches dangerous deletes (recall) | Precision | Cost per check | Speed |
+|---|--:|--:|--:|--:|
+| **Agamemnon's tuned model** (Nebius, small) | **100%** | 94.1% | **$0.00004** | **1.3 s** |
+| A stock model (untuned) | 93.8% — *misses one* | 100% | $0.00005 | 2.9 s |
+| A top-tier model (as reference) | 100% | 100% | $0.00022 | 2.2 s |
+
+The tuned small model catches **every** dangerous delete — same as the top-tier model — at
+**one fifth of the cost**. The untuned model lets one slip through.
+
+**And the rest of the system:**
+
+| What | Result |
 |---|---|
-| 🧾 **Recorded** | written atomically with its audit entry — *an action without an audit trail is structurally impossible* |
-| 📏 **Measured** | Agamemnon counts the true blast radius with **its own** credential — not the number the agent claims |
-| ⚖️ **Judged** | a pure, deterministic policy engine decides — the model may only *escalate*, never soften |
-| 💾 **Reversible** | rows are snapshotted to storage *before* deletion; undo replays them in seconds |
-| 🔑 **Least-privilege** | executed with a credential minted for that one action, then revoked — both audited |
-
-> **The model advises. The rules decide.** And the write path never stalls on the model.
-
----
-
-## 📊 Statistical proof it works
-
-All numbers below are **measured on real hardware against real PostgreSQL**, not asserted.
-
-### The classifier is small, cheap, fast — and doesn't miss
-
-Blast-radius classifier scored on a **held-out set of 48 labelled actions** (16 per
-class), including 50 hand-written adversarial cases in the pool (deletes disguised as
-updates, bounded predicates that are secretly unbounded, cascading foreign keys):
-
-| Model | Precision | Recall | F1 | Cost / call | p50 latency |
-|---|--:|--:|--:|--:|--:|
-| 🏅 **Agamemnon-tuned** · `Qwen3-30B-A3B` | 94.1% | **100.0%** | 97.0% | **$0.00004** | **1270 ms** |
-| Stock (untuned) · `gemma-3-27b-it` | 100.0% | 93.8% ⚠️ | 96.8% | $0.00005 | 2872 ms |
-| Frontier judge · `DeepSeek-V4-Pro` | 100.0% | 100.0% | 100.0% | $0.00022 | 2178 ms |
-
-**The tuned small model matches the frontier judge's 100% recall — it catches every
-catastrophic delete — at ⅕ of the cost and roughly half the latency.** The stock model,
-by contrast, *misses a catastrophic case* (93.8% recall). On the write path, recall on
-"catastrophic" is the number that matters, and the cheap tuned model wins it.
-
-### The rest of the system, measured
-
-| Metric | Value | Why it matters |
-|---|--:|---|
-| Rogue delete: **claimed vs measured** | 1,210 → **412,000 rows** | Agamemnon caught a **340.5×** blast-radius lie |
-| Time to block (end-to-end, durable workflow) | **~2–4 s** | fast enough to feel instant on stage |
-| True blast-radius count over 412k rows | **~50 ms** | measuring is cheap; there's no excuse not to |
-| Policy engine | **14 / 14** unit tests pass | pure, deterministic, model-free |
-| Audit invariant | **1 action → ≥ 1 audit row**, always | enforced in a single transaction |
-| Undo fidelity | **exact rows + exact ids restored** | snapshot-by-id + `OVERRIDING SYSTEM VALUE` |
-| Cold reset | **< 10 s** | every act repeatable from a clean slate |
+| Agent claimed vs. what Agamemnon measured | 1,210 rows claimed → **412,000 real** (a 340x lie, caught) |
+| Time to block a bad request | about 2–4 seconds |
+| Rule engine | 14 / 14 tests passing, no AI involved |
+| Every request has an audit record | guaranteed by design |
+| Undo | restores the exact rows that were deleted |
+| Reset to a clean demo | under 10 seconds |
 
 ---
 
-## ⚡ How it optimises
-
-- **A small tuned model instead of a frontier one.** The eval proves a 30B MoE (3B
-  active) matches a frontier judge's catch rate at **1/5 the cost**. We ship the cheap one.
-- **An 800 ms hard cap with a deterministic fallback.** The classifier is consulted, but
-  the write path *cannot* stall on it — on timeout or offline, a heuristic takes over and
-  the decision is identical. The critical path needs no network.
-- **Atomic single-mutation ingest.** The action row and its first audit row are inserted
-  in the *same* Convex transaction, so a write with no paper trail can't exist.
-- **Snapshot-by-captured-id.** Undo restores exactly the rows that were deleted, even
-  under query non-determinism — the delete uses the ids the snapshot captured.
-- **Zero hand-written polling.** The console is driven entirely by Convex **reactive
-  queries**; the UI updates itself when the backend changes.
-- **The rules are readable.** Every decision surfaces the fired rules *by name* — the
-  answer to the obvious judging question ("what if the model is wrong?") is: it can't
-  lower a decision, only raise it.
-
----
-
-## 🏛 Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
-    subgraph AG["🤖 Dispatch Copilot — holds NO database credential"]
-      R[real Nebius reasoning + a hardcoded, deterministic SQL bug]
-    end
-    AG -->|"POST /propose"| ADP["@agamemnon/adapter (the shim)"]
-    ADP --> HTTP["Convex HTTP Actions · /propose · /status"]
-    HTTP --> KO["kickoff mutation<br/>ATOMIC: action + audit row together"]
-    KO --> WF{{"Convex Durable Workflow"}}
-
-    WF -->|"1 · measure true blast radius"| PG[("PostgreSQL — 412,000 loads")]
-    WF -->|"2 · classify"| NEB["Nebius · Qwen3-30B classifier<br/>(800 ms hard cap)"]
-    NEB -.->|"timeout / offline"| HEU["deterministic heuristic"]
-    WF -->|"3 · decide"| POL["Pure Policy Engine<br/>model may only ESCALATE"]
-
-    POL -->|block| BLK["⛔ blocked"]
-    POL -->|approval| PARK["park — sleep + recheck"]
-    POL -->|allow| EXEC
-    PARK -->|operator approves| EXEC["snapshot → file storage<br/>→ delete by id → reconcile"]
+    AG["AI Agent (holds NO database password)"]
+    AG -->|"a change request"| ADP["Adapter (the only thing the agent talks to)"]
+    ADP --> HTTP["Convex endpoint"]
+    HTTP --> KO["Save request + audit record together (one transaction)"]
+    KO --> WF{{"Convex durable workflow"}}
+    WF -->|"1. measure the real size"| PG[("PostgreSQL - real data")]
+    WF -->|"2. get a second opinion"| NEB["Nebius model (with a time limit)"]
+    NEB -.->|"slow or offline"| HEU["fall back to a simple built-in check"]
+    WF -->|"3. decide with plain rules"| POL["Rule engine (AI can only make it stricter)"]
+    POL -->|"too big"| BLK["Blocked"]
+    POL -->|"needs a human"| PARK["Wait for approval"]
+    POL -->|"fine"| EXEC
+    PARK -->|"a person approves"| EXEC["Back up rows, then delete, then check the count"]
     EXEC --> PG
-    EXEC --> FS[("Convex File Storage — undo snapshot")]
-
-    CON["🖥 Agamemnon Console<br/>Convex reactive queries · no polling"]
-    CON <-->|live| KO
-    CON -->|approve · deny · undo · kill| WF
-    FS -.->|undo replays INSERT| PG
+    EXEC --> FS[("Convex file storage - the backup")]
+    CON["Agamemnon console (updates itself, live)"]
+    CON <-->|"live"| KO
+    CON -->|"approve / deny / undo / stop"| WF
+    FS -.->|"undo puts the rows back"| PG
 ```
 
-Two products, two deliberately different visual identities, one screen:
-
-- **Meridian Freight** (the fictional customer) — dated corporate-blue enterprise tooling.
-- **Agamemnon** (the product) — a modern gold-on-ink operator console.
+Two products, two deliberately different looks, so nobody on stage confuses them:
+**Meridian Freight** (the fake customer) looks like dated corporate software; **Agamemnon**
+(our product) is a clean, modern console.
 
 ---
 
-## 🟠 How Convex is integrated
+## How it uses Convex
 
-Convex isn't a database we bolted on — **it is the whole product runtime.**
+Convex isn't just a database here — it runs the **whole backend**.
 
-| Convex capability | What Agamemnon does with it |
+| Convex feature | What Agamemnon does with it |
 |---|---|
-| **Mutations + transactions** | The atomic ingest: `action` row + `auditLog` row in one mutation. The invariant is the transaction. |
-| **Durable Workflow component** | `classify → decide → park → snapshot → execute` survives restarts and keeps its place. The human wait is a `step.sleep()` recheck loop; unrelated branches keep running (3 side tasks complete while a delete is parked). |
-| **Reactive queries** (`convex/react`) | The console's live feed, decision detail, audit log and eval table update with **zero** polling or websocket code of ours. |
-| **File storage** | Undo snapshots are serialised to Convex file storage *before* any delete, and replayed on undo. |
-| **Environment variables** | The Postgres connection string lives **only** in a Convex env var — the agent never sees it. Credential mint/revoke are audited events. |
-| **Rate limiter component** | Caps proposal ingest so a runaway agent can't flood the queue. |
-| **Anonymous local deployment** | The entire backend runs on-device (`CONVEX_AGENT_MODE=anonymous`), so **the demo works fully offline.** |
+| Transactions | Saves each request and its audit record in one step, so a change with no paper trail can't exist. |
+| Durable workflow | Runs the review (measure, check, wait for a human, back up, delete) reliably, even across restarts. While one request waits for approval, other work keeps flowing. |
+| Live queries | The console updates itself the instant anything changes — no refresh, no polling code. |
+| File storage | Holds the backup of deleted rows so undo can restore them. |
+| Environment variables | The database password lives only here — never in the agent. |
+| Runs fully on-device | The whole demo works offline. |
 
-## 🟢 How Nebius is integrated
+## How it uses Nebius
 
-Every model call goes to **Nebius Token Factory** (OpenAI-compatible endpoint):
+Every AI model runs on **Nebius Token Factory**:
 
-| Role | Nebius model | Notes |
+| Where | Nebius model | Why |
 |---|---|---|
-| **Blast-radius classifier** | `Qwen/Qwen3-30B-A3B-Instruct-2507` | temperature 0, strict JSON, 800 ms hard timeout, heuristic fallback behind it |
-| **Agent reasoning narration** | `meta-llama/Llama-3.3-70B-Instruct` | genuinely a model talking on stage — the SQL it "decides on" is hardcoded and deterministic |
-| **Eval dataset generation** | `meta-llama/Llama-3.3-70B-Instruct` | batch-generated 144 of the 200 labelled cases |
-| **Stock baseline** (eval) | `google/gemma-3-27b-it` | a different small model, bare prompt |
-| **Frontier judge** (eval) | `deepseek-ai/DeepSeek-V4-Pro` | the expensive ceiling the tuned model is measured against |
+| Reviewing each change | `Qwen3-30B-A3B` (small, tuned) | fast, cheap, strict JSON, with a hard time limit and a built-in fallback |
+| The agent thinking out loud | `Llama-3.3-70B` | so the reasoning on stage is a real model, not a script |
+| Building the test set | `Llama-3.3-70B` | generated most of the 200 labelled examples |
+| The "stock" and "top-tier" comparisons | `gemma-3-27b` and `DeepSeek-V4-Pro` | the baseline and the ceiling in the scoreboard |
 
-The classifier is **advisory and optional by design** — it can only raise a decision's
-severity, and the deterministic engine works without it. That's what lets the demo run
-even if the venue Wi-Fi dies.
+The AI reviewer is **optional by design** — it can only make a decision stricter, and the
+plain rules work without it. That's why a dead venue network can't break the demo.
 
 ---
 
-## 🎬 The demo — four acts
+## Where things live
 
-1. **Unprotected.** The agent holds the DB password, hits a renamed column, improvises a
-   left-join delete with a subtle bug, and deletes **412,000** records. The dispatch board
-   drains **412,000 → 0 live — while every monitor stays green.** *(The most important image.)*
-2. **Protected.** Same agent, **no database password in its environment.** Agamemnon blocks
-   the delete: the proposal, 412,000 measured vs the agent's 1,210 median (**340×**), the
-   fired rules, the classifier verdict. The board never moves. Deny it — the agent exits clean.
-3. **The plausible one.** A **900-row** delete that looks reasonable. Approve it → the rows
-   really vanish (board −900). A dispatcher complains → click **Undo** → the rows return in
-   seconds, recorded as a **new audited action**.
-4. **The measurement.** The eval table above, live in the console.
-
----
-
-## 🗂 Repository layout
-
-Everything is **one monorepo** — the product and the fictional customer live side by side.
+One repository. The product and the fake customer sit side by side:
 
 ```
-agamemnon/
-├── packages/agamemnon/          ← THE PRODUCT
-│   ├── convex/                  Convex backend: schema, atomic ingest, pure policy
-│   │                            engine, Nebius classifier, durable workflow,
-│   │                            snapshot/delete/undo against Postgres
-│   ├── adapter/                 the shim an agent imports (never holds a DB credential)
-│   ├── console/                 operator console (React + Convex reactive queries) → :5174
-│   └── eval/                    200-case labelled dataset + scoring harness
-│
-├── packages/meridian/           ← THE FICTIONAL CUSTOMER (the "pseudo-sites")
-│   ├── web/                     marketing site + live dispatch board + monitoring
-│   │                            + AI-ops page  (Vite app :5173, API server :8787)
-│   ├── db/                      schema.sql, seed.sql (412k loads), the breaking migration
-│   └── agent/                   Dispatch Copilot — the rogue agent
-│
-└── demo/                        SCRIPT.md (beat-by-beat) + up/down/reset
+packages/agamemnon/     THE PRODUCT
+  convex/    the backend: rules, review workflow, backups, undo
+  adapter/   the shim the agent imports (never holds a password)
+  console/   the operator console  ->  http://localhost:5174
+  eval/      the 200-example test set and the scoreboard
+
+packages/meridian/      THE FAKE CUSTOMER (the demo websites)
+  web/       marketing page + live dispatch board + monitors  ->  http://localhost:5173
+  db/        the database schema and seed (412,000 records)
+  agent/     Dispatch Copilot, the AI agent
+
+demo/        SCRIPT.md (what to say) + start/stop/reset
 ```
 
-**Where are the pseudo-sites?** → `packages/meridian/web/`. Meridian Freight's marketing
-page, the **live dispatch board**, the monitoring strip, and the AI-Operations page are all
-there, served by Vite on **http://localhost:5173** with a small API server on `:8787` that
-holds Meridian's own credential. It's part of this repo — not a separate one.
+**The demo websites are in `packages/meridian/web/`** — same repo, not separate. The live
+dispatch board is at `http://localhost:5173/#/dispatch`.
 
 ---
 
-## ▶️ Run it
+## Run it yourself
 
-See [SETUP.md](SETUP.md) for one-time setup (local Postgres + your Nebius key). Then:
+First-time setup (local database + your Nebius key) is in [SETUP.md](SETUP.md). Then:
 
 ```bash
-make demo     # start Convex + Meridian pseudo-sites + Agamemnon console
-make act1     # unprotected: board drains 412,000 → 0, monitors stay green
-make act2     # protected:   Agamemnon blocks the 412k delete
-make act3     # plausible:    900-row delete → approve in console → undo
-make eval     # score the classifiers → console Eval tab
-make reset    # cold demo state in seconds
+make demo     # start everything
 ```
 
-Open the **dispatch board** at `http://localhost:5173/#/dispatch` and the **console** at
-`http://localhost:5174`. Full beat-by-beat presenter script: [demo/SCRIPT.md](demo/SCRIPT.md).
+Open the dispatch board at `http://localhost:5173/#/dispatch` and the console at
+`http://localhost:5174`, then run `make act1`, `make act2`, `make act3`.
 
----
-
-<p align="center"><sub>Real execution against real Postgres throughout — no mocked deletes, no simulated undo. Built with <b>Convex</b> and <b>Nebius</b>.</sub></p>
+Real deletes against a real database throughout — nothing is faked behind the screen.
+Built on Convex and Nebius.

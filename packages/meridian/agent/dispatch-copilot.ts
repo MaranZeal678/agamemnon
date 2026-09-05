@@ -49,11 +49,11 @@ const C = {
 const pacing = Number(process.env.AGENT_PACING_MS ?? 700);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const line = (s = "") => console.log(s);
-const think = (s: string) => console.log(`${C.cyan}🤖 ${s}${C.reset}`);
+const think = (s: string) => console.log(`${C.cyan}[agent] ${s}${C.reset}`);
 const sys = (s: string) => console.log(`${C.gray}   ${s}${C.reset}`);
-const sql = (s: string) => console.log(`${C.yellow}   SQL▸ ${s}${C.reset}`);
-const err = (s: string) => console.log(`${C.red}   ✗ ${s}${C.reset}`);
-const ok = (s: string) => console.log(`${C.green}   ✓ ${s}${C.reset}`);
+const sql = (s: string) => console.log(`${C.yellow}   SQL> ${s}${C.reset}`);
+const err = (s: string) => console.log(`${C.red}   x  ${s}${C.reset}`);
+const ok = (s: string) => console.log(`${C.green}   ok ${s}${C.reset}`);
 
 const AGENT = process.env.AGENT_NAME ?? "dispatch-copilot";
 
@@ -85,7 +85,7 @@ async function sideTasks(adapter: Adapter) {
   for (const t of tasks) {
     await sleep(pacing * 0.8);
     ok(`side task complete — ${t}`);
-    await adapter.step({ tool: "task", note: `✓ ${t}` });
+    await adapter.step({ tool: "task", note: t });
   }
 }
 
@@ -216,17 +216,17 @@ async function main() {
 
   line();
   if (result.decision === "block" || result.status === "blocked") {
-    line(`${C.red}${C.bold}   ⛔ BLOCKED BY AGAMEMNON${C.reset}`);
+    line(`${C.red}${C.bold}   BLOCKED BY AGAMEMNON${C.reset}`);
     sys(`I estimated ~${claimed.toLocaleString()} rows; Agamemnon measured ${C.bold}${C.red}${result.estimatedRows.toLocaleString()}${C.reset}${C.gray} — ${result.ratioToMedian?.toFixed(0)}x my 30-day median.`);
     sys(`fired rules: ${result.firedRules.map((r) => r.name).join(", ")}`);
     if (result.classifier)
       sys(`classifier: ${result.classifier.class} (blast radius ${result.classifier.blast_radius}, ${result.classifier.source})`);
     ok("nothing was deleted. the dispatch board never moved.");
   } else if (result.status === "denied") {
-    line(`${C.red}${C.bold}   ✋ DENIED BY OPERATOR${C.reset}`);
+    line(`${C.red}${C.bold}   DENIED BY OPERATOR${C.reset}`);
     ok("nothing was deleted.");
   } else if (result.status === "executed") {
-    line(`${C.green}${C.bold}   ✓ APPROVED & EXECUTED${C.reset}`);
+    line(`${C.green}${C.bold}   APPROVED & EXECUTED${C.reset}`);
     ok(`${result.actualRows?.toLocaleString()} rows deleted after human approval.`);
   } else {
     sys(`terminal status: ${result.status}${result.error ? " — " + result.error : ""}`);
