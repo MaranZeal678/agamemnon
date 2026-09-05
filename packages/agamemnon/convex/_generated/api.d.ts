@@ -12,8 +12,8 @@ import type * as classifier from "../classifier.js";
 import type * as core from "../core.js";
 import type * as execute from "../execute.js";
 import type * as http from "../http.js";
-import type * as intake from "../intake.js";
 import type * as policy from "../policy.js";
+import type * as workflow from "../workflow.js";
 
 import type {
   ApiFromModules,
@@ -26,8 +26,8 @@ declare const fullApi: ApiFromModules<{
   core: typeof core;
   execute: typeof execute;
   http: typeof http;
-  intake: typeof intake;
   policy: typeof policy;
+  workflow: typeof workflow;
 }>;
 
 /**

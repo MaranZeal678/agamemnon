@@ -57,6 +57,7 @@ export default defineSchema({
     tool: v.string(),
     target: v.string(), // e.g. "loads"
     predicateSql: v.string(), // the full statement, shown on screen
+    predicate: v.optional(v.string()), // raw WHERE clause, used for execution
     params: v.any(),
     destructive: v.boolean(),
     note: v.optional(v.string()), // human-readable reasoning / step narration

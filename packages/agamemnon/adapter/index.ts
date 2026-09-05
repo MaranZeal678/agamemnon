@@ -77,9 +77,9 @@ export class Adapter {
     return runId;
   }
 
-  /** Log a reasoning step or a failed read — display-only, never executed. */
+  /** Log a reasoning step, a failed read, or a harmless side task — display-only. */
   async step(input: {
-    tool: "reason" | "postgres.query";
+    tool: "reason" | "postgres.query" | "task";
     target?: string;
     sql?: string;
     note: string;
