@@ -655,6 +655,29 @@ export const evalScores = query({
   },
 });
 
+// Replace the eval scoreboard with a fresh set of results (from the harness).
+export const saveEvalResults = mutation({
+  args: {
+    results: v.array(
+      v.object({
+        label: v.string(),
+        model: v.string(),
+        datasetSize: v.number(),
+        precision: v.number(),
+        recall: v.number(),
+        f1: v.number(),
+        costPerCallUsd: v.number(),
+        p50LatencyMs: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, { results }) => {
+    for (const r of await ctx.db.query("classifiers").collect()) await ctx.db.delete(r._id);
+    for (const r of results) await ctx.db.insert("classifiers", { ...r, createdAt: Date.now() });
+    return { saved: results.length };
+  },
+});
+
 export const policyConfig = query({
   args: {},
   handler: async (ctx) => {

@@ -20,3 +20,4 @@ coverage/
 
 # Demo recordings (backup screen captures are large; store locally only)
 demo/recordings/
+demo/.logs/

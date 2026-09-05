@@ -47,12 +47,37 @@ convex-env: ## Push AGAMEMNON_DATABASE_URL + Nebius config into Convex (no value
 seed-policy: ## Seed the policy allowlist + agent 30-day median into Convex
 	@$(CONVEX) run internal.core.seed '{"agent":"dispatch-copilot","median30d":1210,"allowlist":["loads","bookings"],"perRunDestructiveRowBudget":5000}'
 
-## ── Run the agent ───────────────────────────────────────────────────────────
-agent-unprotected: ## Act 1: run the agent UNPROTECTED (deletes directly!)
+## ── Demo services + acts ────────────────────────────────────────────────────
+up: ## Start all demo services (Convex + Meridian web + console), idempotent
+	@bash demo/up.sh
+
+down: ## Stop all demo services
+	@bash demo/down.sh
+
+demo: up ## Start everything for the demo (then run act1/act2/act3)
+	@echo "Ready. Open the two browser panes above, then: make act1"
+
+agent-unprotected: ## run the agent UNPROTECTED (deletes directly!)
 	@cp $(AGENT)/.env.unprotected $(AGENT)/.env && cd $(AGENT) && npx tsx dispatch-copilot.ts
 
-agent-protected: ## Act 2: run the agent PROTECTED (routed through Agamemnon)
+agent-protected: ## run the agent PROTECTED (routed through Agamemnon)
 	@cp $(AGENT)/.env.protected $(AGENT)/.env && cd $(AGENT) && npx tsx dispatch-copilot.ts
+
+act1: reset ## Act 1 — unprotected: watch the board drain 412,000 → 0
+	@cp $(AGENT)/.env.unprotected $(AGENT)/.env && cd $(AGENT) && npx tsx dispatch-copilot.ts
+
+act2: reset ## Act 2 — protected: Agamemnon blocks the 412k delete
+	@cp $(AGENT)/.env.protected $(AGENT)/.env && cd $(AGENT) && SCENARIO=rogue npx tsx dispatch-copilot.ts
+
+act3: reset ## Act 3 — plausible: 900-row delete parks for approval (approve, then undo in the console)
+	@cp $(AGENT)/.env.protected $(AGENT)/.env && cd $(AGENT) && SCENARIO=plausible npx tsx dispatch-copilot.ts
+
+## ── Eval (Phase 5) ──────────────────────────────────────────────────────────
+eval: ## Score tuned/stock/frontier classifiers → console Eval tab
+	@cd $(AGA)/eval && npx tsx score.ts
+
+eval-dataset: ## Regenerate the 200-case labelled dataset via Nebius
+	@cd $(AGA)/eval && npx tsx generate.ts
 
 ## ── Reset / verify ──────────────────────────────────────────────────────────
 reset: ## Restore a cold demo state (re-seed Postgres; clear Convex runs)
