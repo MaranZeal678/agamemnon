@@ -40,7 +40,7 @@ export function App() {
             disabled={!latestRun || latestRun.status !== "running"}
             onClick={() => latestRun && killRun({ runId: latestRun._id })}
           >
-            ⛔ Kill Run
+            Kill Run
           </button>
         </div>
       </header>
@@ -124,12 +124,12 @@ function ActionCard({ a, selected, onClick }: { a: any; selected: boolean; onCli
             )}
           </>
         ) : a.tool === "reason" ? (
-          <span style={{ color: "var(--muted)", fontWeight: 400 }}>💭 {a.note}</span>
+          <span style={{ color: "var(--muted)", fontWeight: 400 }}>{a.note}</span>
         ) : a.tool === "postgres.undo" ? (
-          <span style={{ color: "var(--gold-2)" }}>↺ {a.note}</span>
+          <span style={{ color: "var(--gold-2)" }}>{a.note}</span>
         ) : (
           <span style={{ color: a.status === "failed" ? "var(--red)" : "var(--muted)", fontWeight: 400 }}>
-            {a.status === "failed" ? "✗ " : ""}{a.note || a.predicateSql}
+            {a.note || a.predicateSql}
           </span>
         )}
       </div>
@@ -255,14 +255,14 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
                 disabled={busy}
                 onClick={async () => { setBusy(true); try { await approve({ actionId, note }); } finally { setBusy(false); } }}
               >
-                ✓ Approve
+                Approve
               </button>
               <button
                 className="btn danger"
                 disabled={busy}
                 onClick={async () => { setBusy(true); try { await deny({ actionId, note }); } finally { setBusy(false); } }}
               >
-                ✕ Deny
+                Deny
               </button>
             </div>
           </div>
@@ -281,7 +281,7 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
             disabled={busy}
             onClick={async () => { setBusy(true); try { await undo({ actionId }); } finally { setBusy(false); } }}
           >
-            ↺ Undo — restore {a.actualRows?.toLocaleString()} rows
+            Undo — restore {a.actualRows?.toLocaleString()} rows
           </button>
         </div>
       )}
@@ -293,7 +293,7 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
           <div className={`mini${m._id === a._id ? " thisone" : ""}${m.status === "failed" ? " fail" : ""}`} key={m._id}>
             <span className="seq">#{m.seq}</span>
             <span className="mtool">{m.tool}</span>
-            <span className="mnote">{m.status === "failed" ? `✗ ${m.error ?? m.note}` : m.note || m.predicateSql}</span>
+            <span className="mnote">{m.status === "failed" ? (m.error ?? m.note) : m.note || m.predicateSql}</span>
             <StatusBadge status={m.status} />
           </div>
         ))}

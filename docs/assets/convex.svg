@@ -1,12 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 120" role="img" aria-label="Convex">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 128" role="img" aria-label="Convex">
   <title>Convex</title>
-  <!-- swirl mark: three spiralling blades (purple / red / gold) -->
-  <g fill="none" stroke-linecap="round" stroke-width="17">
-    <path d="M60,60 C54,40 62,24 80,22" stroke="#7A2E8E"/>
-    <path d="M60,60 C54,40 62,24 80,22" stroke="#ED3833" transform="rotate(120 60 60)"/>
-    <path d="M60,60 C54,40 62,24 80,22" stroke="#F5A623" transform="rotate(240 60 60)"/>
+  <!-- aperture ring: three overlapping arcs (purple / red / gold) -->
+  <g fill="none" stroke-width="23" stroke-linecap="round">
+    <path d="M27.6,85 A42,42 0 0 1 71.3,22.6" stroke="#8B2A8F"/>
+    <path d="M49.6,24.5 A42,42 0 0 1 96.2,91.0" stroke="#EE3129"/>
+    <path d="M100.4,85 A42,42 0 0 1 24.5,78.4" stroke="#F5A81C"/>
   </g>
-  <circle cx="60" cy="60" r="7.5" fill="#ED3833"/>
   <!-- wordmark -->
-  <text x="132" y="83" font-family="'Arial Black','Helvetica Neue',Arial,sans-serif" font-weight="900" font-size="60" letter-spacing="-1" fill="#111111">convex</text>
+  <text x="140" y="86" font-family="'Arial Black','Helvetica Neue',Arial,sans-serif" font-weight="900" font-size="62" letter-spacing="-1.5" fill="#141414">convex</text>
 </svg>
