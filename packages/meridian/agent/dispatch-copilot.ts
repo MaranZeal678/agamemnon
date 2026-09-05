@@ -146,8 +146,23 @@ async function main() {
   // Beat E — execute (or propose).
   if (!protectedMode && directClient) {
     sys(`${C.red}executing delete directly against Postgres — no oversight${C.reset}`);
-    const res = await directClient.query(deleteSql);
-    err(`${C.bold}DELETED ${res.rowCount?.toLocaleString()} rows from loads${C.reset}`);
+    // Batched so the live dispatch board visibly drains 412,000 → 0 instead of
+    // snapping in one atomic statement. Still a single real, improvised delete;
+    // the batching is only how a large delete executes.
+    const batch = Number(process.env.DELETE_BATCH ?? 15000);
+    const batchMs = Number(process.env.DELETE_BATCH_MS ?? 130);
+    const batchSql = `DELETE FROM loads WHERE id IN (SELECT l.id FROM loads l LEFT JOIN bookings b ON b.load_ref = l.id::text WHERE b.id IS NULL AND l.status = 'active' LIMIT ${batch})`;
+    let deleted = 0;
+    for (;;) {
+      const res = await directClient.query(batchSql);
+      const n = res.rowCount ?? 0;
+      deleted += n;
+      process.stdout.write(`\r${C.red}   deleting… ${deleted.toLocaleString()} rows gone${C.reset}   `);
+      if (n === 0) break;
+      await sleep(batchMs);
+    }
+    process.stdout.write("\n");
+    err(`${C.bold}DELETED ${deleted.toLocaleString()} rows from loads${C.reset}`);
     err("the dispatch board just emptied. no monitor fired. no one approved this.");
     await directClient.end();
     line();

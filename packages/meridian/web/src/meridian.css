@@ -1,0 +1,146 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   MERIDIAN FREIGHT — deliberately dated internal enterprise tooling.
+   Corporate navy + grey, dense tables, small type, boxy panels, green pills.
+   This is meant to look like software that already exists (circa 2014).
+   Do NOT make this pretty. Agamemnon is the pretty one.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --navy: #2c3e50;
+  --navy-2: #34556d;
+  --steel: #5b7186;
+  --ink: #22303c;
+  --muted: #6b7c8a;
+  --line: #cfd8dc;
+  --line-2: #b0bec5;
+  --panel: #ffffff;
+  --bg: #e8ecee;
+  --stripe: #f4f7f8;
+  --link: #0b5394;
+  --green: #4f9d4f;
+  --green-bg: #e3f0e0;
+  --green-line: #bcd8b6;
+  --amber: #b8860b;
+  --red: #b33a3a;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: Tahoma, Geneva, Verdana, "DejaVu Sans", sans-serif;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: auto;
+}
+
+/* Header */
+.mf-header {
+  background: linear-gradient(180deg, var(--navy-2) 0%, var(--navy) 100%);
+  border-bottom: 3px solid #1c2a36;
+  color: #eaf0f4;
+}
+.mf-header-inner {
+  max-width: 1180px; margin: 0 auto; padding: 8px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.mf-logo { display: flex; align-items: center; gap: 9px; }
+.mf-logo .mark {
+  width: 26px; height: 26px; border-radius: 3px;
+  background: linear-gradient(135deg, #6ea8d8, #2c6ba0);
+  border: 1px solid #1c4a72;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+  display: grid; place-items: center; color: #fff; font-weight: bold; font-size: 15px;
+  font-family: Georgia, serif;
+}
+.mf-logo .word { font-size: 17px; font-weight: bold; letter-spacing: .3px; color: #fff; }
+.mf-logo .word small { display: block; font-size: 9px; font-weight: normal; color: #b9cbd8; letter-spacing: 2px; }
+.mf-userbox { font-size: 11px; color: #cdd9e2; text-align: right; }
+.mf-userbox b { color: #fff; }
+
+/* Nav tabs */
+.mf-nav { background: #223441; border-bottom: 1px solid #16232c; }
+.mf-nav-inner { max-width: 1180px; margin: 0 auto; padding: 0 12px; display: flex; }
+.mf-nav a {
+  color: #b9cbd8; text-decoration: none; font-size: 12px;
+  padding: 8px 15px; border-right: 1px solid #16232c;
+}
+.mf-nav a:hover { background: #2b414f; color: #fff; }
+.mf-nav a.active { background: var(--bg); color: var(--navy); font-weight: bold; }
+
+/* Layout */
+.mf-main { max-width: 1180px; margin: 0 auto; padding: 16px; }
+.mf-crumb { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+.mf-crumb b { color: var(--ink); }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line-2);
+  margin-bottom: 14px;
+}
+.panel > h2 {
+  margin: 0; padding: 6px 10px; font-size: 12px; color: #33475a;
+  background: linear-gradient(180deg, #f3f6f7, #e4eaed);
+  border-bottom: 1px solid var(--line-2); font-weight: bold;
+}
+.panel > .body { padding: 10px; }
+
+/* Tables */
+table.grid { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.grid th {
+  text-align: left; background: #eef2f4; color: #3c4f5e;
+  border: 1px solid var(--line-2); padding: 4px 7px; font-weight: bold; white-space: nowrap;
+}
+table.grid td { border: 1px solid var(--line); padding: 4px 7px; }
+table.grid tr:nth-child(even) td { background: var(--stripe); }
+table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Status pill */
+.pill {
+  display: inline-block; padding: 1px 7px; border-radius: 2px; font-size: 11px;
+  border: 1px solid var(--green-line); background: var(--green-bg); color: #2f6b2f;
+}
+.pill.gray { background: #eceff1; border-color: var(--line-2); color: #5b7186; }
+.pill.amber { background: #fbf3d9; border-color: #e6d18a; color: #8a6d0b; }
+
+/* Monitoring strip */
+.monitor { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.metric {
+  border: 1px solid var(--green-line); background: linear-gradient(180deg,#f0f7ee,#e3f0e0);
+  padding: 8px 10px; position: relative;
+}
+.metric .k { font-size: 10px; color: #5b7186; text-transform: uppercase; letter-spacing: .5px; }
+.metric .v { font-size: 22px; font-weight: bold; color: #2f6b2f; font-variant-numeric: tabular-nums; }
+.metric .u { font-size: 11px; color: #6b7c8a; font-weight: normal; }
+.metric .led {
+  position: absolute; top: 8px; right: 8px; width: 9px; height: 9px; border-radius: 50%;
+  background: #57b957; box-shadow: 0 0 5px #6fdc6f; border: 1px solid #3f8f3f;
+}
+.metric.warn { border-color: #e6d18a; background: linear-gradient(180deg,#fdf8e6,#fbf3d9); }
+.metric.warn .v { color: #8a6d0b; }
+.metric.warn .led { background: #e0b93a; box-shadow: 0 0 5px #f0cf5e; border-color: #b8940b; }
+
+/* Big counter */
+.counter-wrap { display: flex; align-items: baseline; gap: 14px; }
+.counter {
+  font-family: "Courier New", monospace; font-size: 54px; font-weight: bold;
+  color: var(--navy); letter-spacing: 1px; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.counter-sub { font-size: 12px; color: var(--muted); }
+.counter-sub b { color: var(--ink); }
+
+/* Marketing */
+.hero { background: linear-gradient(180deg,#f6f9fa,#e6edf0); border: 1px solid var(--line-2); padding: 26px; margin-bottom: 14px; }
+.hero h1 { margin: 0 0 6px; font-size: 26px; color: var(--navy); }
+.hero p { margin: 0; color: #4a5b68; font-size: 14px; max-width: 640px; }
+.services { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.service h3 { margin: 0 0 6px; font-size: 14px; color: var(--navy); }
+.service p { margin: 0; color: #5b7186; font-size: 12px; }
+.logos { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; opacity: .75; }
+.logos span { font-family: Georgia, serif; font-size: 16px; color: #7a8b98; font-weight: bold; letter-spacing: .5px; }
+
+.mf-footer {
+  border-top: 1px solid var(--line-2); background: #dde4e8; color: #6b7c8a;
+  font-size: 11px; padding: 12px 16px; margin-top: 20px; text-align: center;
+}
+.tiny { font-size: 11px; color: var(--muted); }
+.right { text-align: right; }
+a.mf-link { color: var(--link); }
