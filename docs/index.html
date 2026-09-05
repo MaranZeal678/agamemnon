@@ -4,385 +4,443 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
   :root{
-    --ink:#0a0d13; --panel:#12172079; --panel2:#182031; --line:#232c3f; --line2:#2e3a52;
-    --text:#e9edf5; --muted:#96a0b4; --dim:#5c6678;
+    --ink:#0a0d13; --ink2:#0e121b; --panel:#141926; --panel2:#182031; --line:#232c3f; --line2:#2e3a52;
+    --text:#eaeef6; --muted:#98a2b6; --dim:#5c6678;
     --gold:#e8b93e; --gold2:#f5d072; --golddim:#6b5a26;
     --red:#ff5b5b; --redbg:#2a1517; --redln:#5c2528;
     --green:#46c46a; --greenbg:#12241a; --greenln:#26502f;
     --amber:#f0a92b; --amberbg:#2a2110; --amberln:#5c451a;
     --sans:'Archivo',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
-    --m-navy:#2c3e50; --m-navy2:#34556d; --m-ink:#22303c; --m-muted:#6b7c8a;
-    --m-line:#cfd8dc; --m-line2:#b0bec5; --m-bg:#e8ecee;
+    --m-navy:#2c3e50; --m-navy2:#34556d; --m-ink:#22303c; --m-muted:#6b7c8a; --m-line:#cfd8dc; --m-line2:#b0bec5; --m-bg:#e8ecee;
   }
   *{box-sizing:border-box}
-  body{margin:0; font-family:var(--sans); color:var(--text); background:var(--ink);
-    background-image:radial-gradient(1100px 560px at 84% -14%, rgba(232,185,62,.07), transparent 58%);
-    -webkit-font-smoothing:antialiased; min-height:100vh; display:flex; flex-direction:column}
-  .app{flex:1; display:flex; flex-direction:column; padding:14px 20px 0; gap:12px; min-height:100vh}
+  html,body{height:100%}
+  body{margin:0; font-family:var(--sans); color:var(--text); background:var(--ink); overflow:hidden; -webkit-font-smoothing:antialiased}
+  /* animated background */
+  .bg{position:fixed; inset:0; z-index:0; overflow:hidden}
+  .blob{position:absolute; border-radius:50%; filter:blur(80px); opacity:.5; animation:drift 26s ease-in-out infinite}
+  .blob.g{width:620px;height:620px; background:rgba(232,185,62,.16); top:-220px; right:-140px}
+  .blob.r{width:520px;height:520px; background:rgba(255,91,91,.10); bottom:-220px; left:-120px; animation-delay:-9s}
+  .blob.b{width:480px;height:480px; background:rgba(90,169,255,.08); top:40%; left:55%; animation-delay:-16s}
+  @keyframes drift{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(40px,30px) scale(1.08)}66%{transform:translate(-30px,20px) scale(.96)}}
+  .grid{position:fixed; inset:0; z-index:0; background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px); background-size:46px 46px; mask-image:radial-gradient(circle at 50% 40%,#000,transparent 78%)}
 
-  header.bar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap}
-  .brand{display:flex; align-items:center; gap:11px}
-  .sigil{width:30px;height:30px;filter:drop-shadow(0 0 7px rgba(232,185,62,.5))}
-  .wm{font-weight:900; font-size:19px; letter-spacing:3px} .wm b{color:var(--gold)}
-  .tagline{font-size:14px; color:var(--muted); font-weight:500}
-  .tagline b{color:var(--text); font-weight:700}
+  .shell{position:relative; z-index:1; height:100vh; display:flex; flex-direction:column}
 
-  .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .btn{font-family:var(--sans); font-weight:700; font-size:13px; cursor:pointer; border-radius:9px;
-    padding:9px 15px; border:1px solid var(--line2); background:var(--panel2); color:var(--text);
-    transition:transform .12s, border-color .12s, box-shadow .2s}
+  /* top nav */
+  .nav{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 26px; flex-wrap:wrap}
+  .brand{display:flex; align-items:center; gap:10px}
+  .sigil{width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(232,185,62,.55))}
+  .wm{font-weight:900; font-size:18px; letter-spacing:3px} .wm b{color:var(--gold)}
+  .tabs{display:flex; gap:4px; flex-wrap:wrap}
+  .tab{font-family:var(--mono); font-size:11px; letter-spacing:.5px; color:var(--muted); cursor:pointer; padding:7px 11px; border-radius:8px; border:1px solid transparent; background:transparent; transition:all .18s}
+  .tab:hover{color:var(--text); background:var(--panel2)}
+  .tab.on{color:var(--gold); border-color:var(--golddim); background:rgba(232,185,62,.07)}
+  .tab:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+  .btn{font-family:var(--sans); font-weight:700; font-size:13px; cursor:pointer; border-radius:9px; padding:9px 15px; border:1px solid var(--line2); background:var(--panel2); color:var(--text); transition:transform .12s, border-color .15s, box-shadow .25s}
   .btn:hover{transform:translateY(-1px); border-color:var(--golddim)}
   .btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
-  .btn.gold{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a2008; border-color:var(--gold); font-weight:800; box-shadow:0 0 0 0 rgba(232,185,62,.5)}
+  .btn.gold{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a2008; border-color:var(--gold); font-weight:800}
   .btn.gold.pulse{animation:cta 2.4s ease-in-out infinite}
-  @keyframes cta{0%,100%{box-shadow:0 0 0 0 rgba(232,185,62,.45)}50%{box-shadow:0 0 0 8px rgba(232,185,62,0)}}
+  @keyframes cta{0%,100%{box-shadow:0 0 0 0 rgba(232,185,62,.5)}50%{box-shadow:0 0 0 9px rgba(232,185,62,0)}}
+  .btn.sm{padding:7px 12px; font-size:12px}
   .btn.ghost{background:transparent; color:var(--muted)}
-  .btn small{display:block; font-size:9px; font-weight:600; letter-spacing:.5px; opacity:.7; text-transform:uppercase}
   .btn[disabled]{opacity:.4; cursor:not-allowed; transform:none}
 
-  .stage{display:grid; grid-template-columns:0.92fr 1.06fr 1.04fr; gap:12px; flex:1; min-height:0}
-  .win{display:flex; flex-direction:column; border-radius:13px; overflow:hidden; min-height:0;
-    border:1px solid var(--line); background:#12172e12; background:rgba(18,23,38,.72); backdrop-filter:blur(3px);
-    box-shadow:0 24px 60px -36px rgba(0,0,0,.85)}
-  .winbar{display:flex; align-items:center; gap:9px; padding:9px 13px; font-size:12px; font-weight:600; border-bottom:1px solid var(--line); color:var(--muted); flex:none}
+  /* pages */
+  .stage{flex:1; position:relative; min-height:0}
+  .page{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
+    padding:10px 26px 20px; opacity:0; transform:translateY(26px) scale(.985); pointer-events:none;
+    transition:opacity .55s ease, transform .55s cubic-bezier(.2,.75,.25,1)}
+  .page.on{opacity:1; transform:none; pointer-events:auto}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); font-weight:700}
+  .ph{font-size:clamp(30px,4.6vw,54px); font-weight:900; letter-spacing:-1px; text-align:center; text-wrap:balance; line-height:1.05; margin:0}
+  .ph .hl{color:var(--gold)}
+  .psub{font-size:16px; color:var(--muted); text-align:center; max-width:46ch}
+  .chips{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+  .chip2{font-family:var(--mono); font-size:12.5px; color:var(--text); background:var(--panel2); border:1px solid var(--line2); border-radius:20px; padding:7px 14px; display:flex; align-items:center; gap:8px}
+  .chip2 .dot{width:7px;height:7px;border-radius:50%;background:var(--gold)}
+  .chip2.red .dot{background:var(--red)} .chip2.grn .dot{background:var(--green)}
+  .reveal{opacity:0; transform:translateY(14px)}
+  .page.on .reveal{animation:rise .6s cubic-bezier(.2,.75,.25,1) forwards}
+  @keyframes rise{to{opacity:1; transform:none}}
+
+  /* generic mock window */
+  .mock{border:1px solid var(--line); border-radius:13px; overflow:hidden; background:rgba(18,23,38,.82); box-shadow:0 30px 70px -34px rgba(0,0,0,.9); width:100%}
+  .mbar{display:flex; align-items:center; gap:9px; padding:9px 13px; font-size:12px; font-weight:600; border-bottom:1px solid var(--line); color:var(--muted)}
   .dots{display:flex;gap:5px}.dots i{width:9px;height:9px;border-radius:50%;background:#39435a}
-  .winbar .chip{margin-left:auto; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:2px 8px; border-radius:20px; border:1px solid var(--line2); color:var(--dim); transition:color .25s, border-color .25s}
-  .winbar .chip.on{color:var(--gold); border-color:var(--golddim)}
-  .winbar .chip.red{color:var(--red); border-color:var(--redln)} .winbar .chip.grn{color:var(--green); border-color:var(--greenln)}
+  .mbar .chip{margin-left:auto; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:2px 8px; border-radius:20px; border:1px solid var(--line2); color:var(--dim)}
+  .mbar .chip.red{color:var(--red); border-color:var(--redln)} .mbar .chip.grn{color:var(--green); border-color:var(--greenln)}
 
-  /* Board */
-  .board .winbar{background:linear-gradient(180deg,var(--m-navy2),var(--m-navy)); color:#eaf0f4; border-bottom:2px solid #1c2a36; font-weight:700}
+  /* board */
+  .board .mbar{background:linear-gradient(180deg,var(--m-navy2),var(--m-navy)); color:#eaf0f4; border-bottom:2px solid #1c2a36; font-weight:700}
   .board .dots i{background:#5b7186}
-  .bbody{background:var(--m-bg); font-family:Tahoma,Geneva,Verdana,sans-serif; color:var(--m-ink); padding:13px; overflow:auto; display:flex; flex-direction:column; gap:11px}
-  .cnt-row{background:#fff; border:1px solid var(--m-line2); padding:12px 14px}
-  .cnt{font-family:'Courier New',var(--mono); font-weight:700; font-size:46px; color:var(--m-navy); letter-spacing:1px; font-variant-numeric:tabular-nums; line-height:1; transition:color .3s}
+  .bbody{background:var(--m-bg); font-family:Tahoma,Geneva,Verdana,sans-serif; color:var(--m-ink); padding:16px; display:flex; flex-direction:column; gap:13px}
+  .cnt{font-family:'Courier New',var(--mono); font-weight:700; font-size:clamp(44px,8vw,68px); color:var(--m-navy); letter-spacing:1px; font-variant-numeric:tabular-nums; line-height:1; transition:color .3s}
   .cnt.draining{color:#b33a3a}
-  .cnt-cap{font-size:12px; color:var(--m-muted); margin-top:3px} .cnt-cap b{color:var(--m-ink)}
-  .mons{display:grid; grid-template-columns:1fr 1fr; gap:8px}
-  .mon{position:relative; border:1px solid var(--m-greenln,#bcd8b6); background:linear-gradient(180deg,#f0f7ee,#e3f0e0); padding:8px 10px}
-  .mon .led{position:absolute; top:8px; right:8px; width:10px;height:10px;border-radius:50%; background:#57b957; box-shadow:0 0 6px #6fdc6f; border:1px solid #3f8f3f; animation:led 2s ease-in-out infinite}
-  @keyframes led{50%{box-shadow:0 0 11px #8ef08e}}
-  .mon .k{font-size:9.5px; text-transform:uppercase; letter-spacing:.4px; color:#5b7186}
-  .mon .v{font-size:17px; font-weight:bold; color:#2f6b2f; font-variant-numeric:tabular-nums}
-  .mon .v i{font-size:10px; font-style:normal; color:#6b7c8a; font-weight:normal}
-  table.mt{width:100%; border-collapse:collapse; font-size:11px}
-  table.mt th{background:#eef2f4; color:#3c4f5e; border:1px solid var(--m-line2); padding:3px 6px; text-align:left; font-weight:bold}
-  table.mt td{border:1px solid var(--m-line); padding:3px 6px}
-  .mpill{display:inline-block; padding:0 6px; border-radius:2px; font-size:10px; border:1px solid #bcd8b6; background:#e3f0e0; color:#2f6b2f}
-  .mrow{transition:opacity .4s, transform .4s} .mrow.gone{opacity:0; transform:translateX(-10px)}
-  .mempty{font-size:12px; color:var(--m-muted); padding:12px; text-align:center; border:1px dashed var(--m-line2); background:#fff}
+  .cnt-cap{font-size:13px; color:var(--m-muted)} .cnt-cap b{color:var(--m-ink)}
+  .mons{display:grid; grid-template-columns:repeat(4,1fr); gap:9px}
+  .mon{position:relative; border:1px solid #bcd8b6; background:linear-gradient(180deg,#f0f7ee,#e3f0e0); padding:9px 11px}
+  .mon .led{position:absolute; top:9px; right:9px; width:10px;height:10px;border-radius:50%; background:#57b957; box-shadow:0 0 6px #6fdc6f; border:1px solid #3f8f3f; animation:led 2s ease-in-out infinite}
+  @keyframes led{50%{box-shadow:0 0 12px #8ef08e}}
+  .mon .k{font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#5b7186} .mon .v{font-size:19px; font-weight:bold; color:#2f6b2f; font-variant-numeric:tabular-nums} .mon .v i{font-size:11px;font-style:normal;color:#6b7c8a;font-weight:normal}
 
-  /* Terminal */
-  .term .winbar{background:#0b0f16; color:#9aa6bd; border-bottom:1px solid var(--line)}
-  .tbody{font-family:var(--mono); font-size:12.5px; line-height:1.65; padding:12px 14px; overflow:auto; flex:1; background:#080b11; white-space:pre-wrap; word-break:break-word}
-  .tl{display:block}
-  .t-cmd{color:#e9edf5} .t-cmd .p{color:var(--green)} .t-agent{color:#57d1e6}
-  .t-sql{color:#e6c260} .t-err{color:#ff6b6b} .t-ok{color:#5fd08a} .t-sys{color:#7f8aa0}
-  .t-blk{color:#ff5b5b; font-weight:700} .t-appr{color:#5fd08a; font-weight:700} .t-arrow{color:var(--gold)}
-  .caret{display:inline-block; width:7px; height:14px; margin-bottom:-2px; background:#57d1e6; animation:blink 1s steps(1) infinite}
+  /* terminal */
+  .term .mbar{background:#0b0f16; color:#9aa6bd}
+  .tbody{font-family:var(--mono); font-size:12.5px; line-height:1.7; padding:14px 16px; background:#080b11; white-space:pre-wrap}
+  .t-cmd .p{color:var(--green)} .t-agent{color:#57d1e6} .t-sql{color:#e6c260} .t-err{color:#ff6b6b} .t-ok{color:#5fd08a} .t-sys{color:#7f8aa0} .t-blk{color:#ff5b5b;font-weight:700}
+  .cur{display:inline-block;width:7px;height:14px;background:#57d1e6;margin-bottom:-2px;animation:blink 1s steps(1) infinite}
   @keyframes blink{50%{opacity:0}}
 
-  /* Console */
-  .con .winbar{background:linear-gradient(180deg,rgba(232,185,62,.08),transparent); color:var(--text); font-weight:700}
-  .csig{width:17px;height:17px}
-  .live{margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted)}
-  .live .d{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green)}
-  .cbody{overflow:auto; flex:1; padding:12px; display:flex; flex-direction:column; gap:9px}
-  .slabel{font-size:10px; text-transform:uppercase; letter-spacing:1.3px; color:var(--dim); font-weight:700}
-  .card{border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--panel2); animation:slide .34s cubic-bezier(.2,.7,.3,1) both}
-  @keyframes slide{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
-  .card.blocked{border-left:3px solid var(--red)} .card.blocked.flash{animation:slide .34s both, flash 1.1s ease-out .2s}
-  @keyframes flash{0%{box-shadow:0 0 0 0 rgba(255,91,91,.5)}100%{box-shadow:0 0 0 14px rgba(255,91,91,0)}}
-  .card.await{border-left:3px solid var(--amber)} .card.exec{border-left:3px solid var(--green)}
-  .card.logged,.card.failed,.card.reason{border-left:3px solid var(--line2)} .card.failed{border-left-color:var(--red)}
-  .card-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
-  .ctool{font-family:var(--mono); font-size:11px; color:var(--muted)} .ctitle{font-size:13px; margin-top:3px}
-  .csub{font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:2px}
-  .badge{font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; padding:2px 8px; border-radius:20px; border:1px solid var(--line2); color:var(--muted); white-space:nowrap}
-  .badge.block{background:var(--redbg); color:var(--red); border-color:var(--redln)}
-  .badge.await{background:var(--amberbg); color:var(--amber); border-color:var(--amberln)}
-  .badge.exec{background:var(--greenbg); color:var(--green); border-color:var(--greenln)}
-  .badge.failed{background:var(--redbg); color:var(--red); border-color:var(--redln)} .badge.logged{background:var(--panel); color:var(--dim)}
-
-  .decision{border:1px solid var(--golddim); border-radius:11px; padding:12px; background:rgba(232,185,62,.05); display:flex; flex-direction:column; gap:10px; animation:slide .34s both}
+  /* console */
+  .con .mbar{background:linear-gradient(180deg,rgba(232,185,62,.08),transparent); color:var(--text); font-weight:700}
+  .cbody{padding:13px; display:flex; flex-direction:column; gap:9px}
+  .card{border:1px solid var(--line); border-radius:10px; padding:9px 12px; background:var(--panel2)}
+  .card.blocked{border-left:3px solid var(--red)} .card.await{border-left:3px solid var(--amber)} .card.exec{border-left:3px solid var(--green)} .card.logged,.card.failed{border-left:3px solid var(--line2)} .card.failed{border-left-color:var(--red)}
+  .ct{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .ctool{font-family:var(--mono); font-size:11px; color:var(--muted)} .ctitle{font-size:13px; margin-top:2px}
+  .badge{font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; padding:2px 8px; border-radius:20px; border:1px solid var(--line2); color:var(--muted)}
+  .badge.block{background:var(--redbg); color:var(--red); border-color:var(--redln)} .badge.await{background:var(--amberbg); color:var(--amber); border-color:var(--amberln)} .badge.exec{background:var(--greenbg); color:var(--green); border-color:var(--greenln)} .badge.failed{background:var(--redbg); color:var(--red); border-color:var(--redln)} .badge.logged{background:var(--panel); color:var(--dim)}
+  .dec{border:1px solid var(--golddim); border-radius:10px; padding:12px; background:rgba(232,185,62,.05); display:flex; flex-direction:column; gap:9px}
   .dh{font-size:9.5px; text-transform:uppercase; letter-spacing:1.1px; color:var(--dim); font-weight:700}
   .sql{font-family:var(--mono); font-size:11px; line-height:1.5; background:#0a0d13; border:1px solid var(--line); border-radius:7px; padding:9px 11px; color:#cfe3ff; white-space:pre-wrap; word-break:break-word}
   .sql .bug{color:var(--red); font-weight:700; text-decoration:underline}
   .blast{display:flex; align-items:baseline; gap:11px; flex-wrap:wrap}
-  .blast .m{font-family:var(--mono); font-size:30px; font-weight:800; color:var(--red); line-height:1}
-  .blast .m.amber{color:var(--amber)}
-  .blast .strike{color:var(--dim); text-decoration:line-through; font-size:12px}
-  .blast .ratio{font-family:var(--mono); color:var(--gold); font-weight:700; font-size:13px}
-  .doctrine{font-size:11.5px; color:var(--gold2); background:rgba(232,185,62,.08); border:1px solid var(--golddim); border-radius:8px; padding:8px 10px}
-  .doctrine b{color:var(--gold)}
-  .rule{display:flex; gap:9px; align-items:flex-start; padding:6px 0; border-top:1px solid var(--line)} .rule:first-of-type{border-top:none}
-  .sev{font-size:9px; font-weight:800; text-transform:uppercase; padding:2px 6px; border-radius:5px; white-space:nowrap; margin-top:1px}
-  .sev.block{background:var(--redbg); color:var(--red)} .sev.approval{background:var(--amberbg); color:var(--amber)}
-  .rname{font-family:var(--mono); font-size:12px; font-weight:600} .rdetail{font-size:11px; color:var(--muted); margin-top:1px}
-  .actions{display:flex; gap:8px} .actions .btn{flex:1; padding:9px}
-  .btn.approve{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a2008; border-color:var(--gold); font-weight:800}
-  .btn.deny{background:var(--redbg); color:var(--red); border-color:var(--redln)} .btn.undo{background:var(--panel2)}
+  .blast .m{font-family:var(--mono); font-size:30px; font-weight:800; color:var(--red); line-height:1} .blast .m.amber{color:var(--amber)}
+  .blast .strike{color:var(--dim); text-decoration:line-through; font-size:12px} .blast .ratio{font-family:var(--mono); color:var(--gold); font-weight:700; font-size:13px}
+  .doctrine{font-size:11.5px; color:var(--gold2); background:rgba(232,185,62,.08); border:1px solid var(--golddim); border-radius:8px; padding:8px 10px} .doctrine b{color:var(--gold)}
+  .rule{display:flex; gap:9px; align-items:flex-start; padding:5px 0; border-top:1px solid var(--line)} .rule:first-of-type{border-top:none}
+  .sev{font-size:9px; font-weight:800; text-transform:uppercase; padding:2px 6px; border-radius:5px; margin-top:1px} .sev.block{background:var(--redbg); color:var(--red)} .sev.approval{background:var(--amberbg); color:var(--amber)}
+  .rname{font-family:var(--mono); font-size:12px; font-weight:600} .rdetail{font-size:11px; color:var(--muted)}
+  .actions{display:flex; gap:8px} .actions .btn{flex:1}
+  .btn.approve{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#2a2008; border-color:var(--gold); font-weight:800} .btn.deny{background:var(--redbg); color:var(--red); border-color:var(--redln)} .btn.undo{background:var(--panel2)}
 
-  /* ribbon */
-  .ribbon{display:flex; flex-direction:column; gap:7px; padding:4px 2px 10px}
-  .narr{display:flex; align-items:center; gap:11px}
-  .atag{font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:1px; padding:3px 9px; border-radius:6px; background:var(--panel2); border:1px solid var(--line2); color:var(--gold); white-space:nowrap}
-  .ntext{font-size:14.5px; font-weight:500; transition:opacity .2s}
-  .prog{height:4px; border-radius:3px; background:var(--line); overflow:hidden}
-  .prog .bar{height:100%; width:0; background:linear-gradient(90deg,var(--gold),var(--gold2)); transition:width .25s linear}
+  /* two-up */
+  .duo{display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; max-width:1000px}
+  .single{width:100%; max-width:560px}
+  .wide{width:100%; max-width:900px}
 
-  /* proof strip */
-  .proof{border-top:1px solid var(--line); margin:2px -20px 0; padding:26px 20px 30px; background:#0b0e15}
-  .proof .in{max-width:1180px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap}
-  .tiles{display:flex; gap:14px; flex-wrap:wrap}
-  .tile{border:1px solid var(--line); border-radius:12px; padding:14px 18px; background:var(--panel2); min-width:150px}
-  .tile .big{font-family:var(--mono); font-size:26px; font-weight:800; color:var(--gold); line-height:1}
-  .tile .lab{font-size:11.5px; color:var(--muted); margin-top:6px}
-  .built{display:flex; align-items:center; gap:14px; color:var(--dim); font-size:12px}
-  .built b{color:var(--muted)} .built svg{display:block}
+  /* proof tiles */
+  .tiles{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; width:100%; max-width:900px}
+  .tile{border:1px solid var(--line); border-radius:13px; padding:18px; background:var(--panel2); text-align:center}
+  .tile .big{font-family:var(--mono); font-size:30px; font-weight:800; color:var(--gold); line-height:1} .tile.grn .big{color:var(--green)}
+  .tile .lab{font-size:12px; color:var(--muted); margin-top:8px}
+  table.eval{width:100%; border-collapse:collapse; font-size:12.5px}
+  table.eval th{text-align:right; color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.7px; padding:8px 10px; border-bottom:1px solid var(--line2)}
+  table.eval th:first-child,table.eval td:first-child{text-align:left}
+  table.eval td{padding:11px 10px; border-bottom:1px solid var(--line); font-family:var(--mono)} table.eval td.lab{font-family:var(--sans); font-weight:700}
+  table.eval tr.tuned td{background:rgba(232,185,62,.06)} table.eval tr.tuned td.lab{color:var(--gold)} .good{color:var(--green)} .warn{color:var(--amber)} .s{font-size:10px; color:var(--dim)}
 
-  @media (max-width:1000px){.stage{grid-template-columns:1fr; } .win{min-height:300px} .proof .in{justify-content:flex-start}}
-  @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important} .caret{display:none}}
+  /* built on */
+  .stack{display:flex; gap:44px; align-items:center; flex-wrap:wrap; justify-content:center}
+
+  /* bottom bar */
+  .foot{display:flex; align-items:center; justify-content:center; gap:20px; padding:14px 26px 20px}
+  .arrow{width:44px;height:44px; border-radius:50%; border:1px solid var(--line2); background:var(--panel2); color:var(--text); font-size:20px; cursor:pointer; display:grid; place-items:center; transition:transform .12s, border-color .15s}
+  .arrow:hover{transform:translateY(-1px); border-color:var(--golddim)} .arrow[disabled]{opacity:.35; cursor:not-allowed}
+  .pips{display:flex; gap:9px}
+  .pip{width:9px;height:9px;border-radius:50%; background:var(--line2); cursor:pointer; transition:all .2s}
+  .pip.on{background:var(--gold); transform:scale(1.25); box-shadow:0 0 8px rgba(232,185,62,.6)}
+
+  @media (max-width:820px){ .duo,.tiles{grid-template-columns:1fr} .tabs{display:none} }
+  @media (prefers-reduced-motion:reduce){ *{animation:none !important; transition:opacity .2s !important} .blob{display:none} .cur{display:none} }
 </style>
 
-<div class="app">
-  <header class="bar">
+<div class="bg"><div class="blob g"></div><div class="blob r"></div><div class="blob b"></div></div>
+<div class="grid"></div>
+
+<div class="shell">
+  <nav class="nav">
     <div class="brand">
-      <svg class="sigil" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="1.6"/>
-        <path d="M20 3 L20 37 M6 11 L34 11 M6 30 L34 30" stroke="#6b5a26" stroke-width="1"/>
-        <circle cx="20" cy="20.5" r="4.2" fill="#e8b93e"/>
-      </svg>
-      <div>
-        <div class="wm">AGA<b>MEMNON</b></div>
-      </div>
-      <div class="tagline">A gate between an AI agent and your database. <b>Watch it stop a catastrophe.</b></div>
+      <svg class="sigil" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="1.6"/><path d="M20 3 L20 37 M6 11 L34 11 M6 30 L34 30" stroke="#6b5a26" stroke-width="1"/><circle cx="20" cy="20.5" r="4.2" fill="#e8b93e"/></svg>
+      <div class="wm">AGA<b>MEMNON</b></div>
     </div>
-    <div class="controls">
-      <button class="btn gold pulse" data-act="all">Play the story<small>about 80 seconds</small></button>
-      <button class="btn" data-act="1">1 · Unprotected</button>
-      <button class="btn" data-act="2">2 · Blocked</button>
-      <button class="btn" data-act="3">3 · Approve &amp; undo</button>
-      <button class="btn ghost" data-act="reset">Reset</button>
+    <div class="tabs" id="tabs">
+      <button class="tab" data-g="0">Home</button>
+      <button class="tab" data-g="1">Risk</button>
+      <button class="tab" data-g="2">Gate</button>
+      <button class="tab" data-g="3">Verdict</button>
+      <button class="tab" data-g="4">Undo</button>
+      <button class="tab" data-g="5">Proof</button>
+      <button class="tab" data-g="6">Stack</button>
     </div>
-  </header>
+    <button class="btn gold pulse sm" id="play">Play the story</button>
+  </nav>
 
-  <div class="stage">
-    <section class="win board">
-      <div class="winbar"><span class="dots"><i></i><i></i><i></i></span> Meridian Freight — Dispatch Board <span class="chip on">live</span></div>
-      <div class="bbody">
-        <div class="cnt-row"><div class="cnt" id="cnt">412,000</div><div class="cnt-cap">active loads · <b>live</b> from the database</div></div>
-        <div class="mons">
-          <div class="mon"><span class="led"></span><div class="k">Query Latency</div><div class="v">42<i>ms</i></div></div>
-          <div class="mon"><span class="led"></span><div class="k">Error Rate</div><div class="v">0.00<i>%</i></div></div>
-          <div class="mon"><span class="led"></span><div class="k">DB Load</div><div class="v">2<i>active</i></div></div>
-          <div class="mon"><span class="led"></span><div class="k">Conn Pool</div><div class="v">1<i>/8</i></div></div>
+  <div class="stage" id="stage">
+
+    <!-- 0 HOME -->
+    <section class="page" data-p="0">
+      <div class="eyebrow reveal" style="animation-delay:.05s">A safety layer for AI agents</div>
+      <h1 class="ph reveal" style="animation-delay:.12s; font-size:clamp(42px,8vw,90px); letter-spacing:4px">AGA<span class="hl">MEMNON</span></h1>
+      <div class="psub reveal" style="animation-delay:.2s; font-size:19px">An AI agent can't delete what it can't reach.<br>Agamemnon holds the database password, so every write must ask first.</div>
+      <div class="chips reveal" style="animation-delay:.3s">
+        <button class="btn gold" data-g="1">See what happens</button>
+        <a class="btn" id="ghbtn" href="https://github.com/MaranZeal678/agamemnon" target="_blank" rel="noopener">View the code</a>
+      </div>
+    </section>
+
+    <!-- 1 RISK -->
+    <section class="page" data-p="1">
+      <div class="eyebrow reveal">01 &middot; Without the gate</div>
+      <h2 class="ph reveal" style="animation-delay:.08s">Authorized. Unmonitored. <span class="hl">Gone.</span></h2>
+      <div class="mock board single reveal" style="animation-delay:.18s">
+        <div class="mbar"><span class="dots"><i></i><i></i><i></i></span> Meridian Freight — Dispatch Board <span class="chip grn">live</span></div>
+        <div class="bbody">
+          <div><div class="cnt" id="cnt1">412,000</div><div class="cnt-cap">active loads &middot; <b>live</b> from the database</div></div>
+          <div class="mons">
+            <div class="mon"><span class="led"></span><div class="k">Latency</div><div class="v">42<i>ms</i></div></div>
+            <div class="mon"><span class="led"></span><div class="k">Errors</div><div class="v">0.00<i>%</i></div></div>
+            <div class="mon"><span class="led"></span><div class="k">DB Load</div><div class="v">2<i>act</i></div></div>
+            <div class="mon"><span class="led"></span><div class="k">Pool</div><div class="v">1<i>/8</i></div></div>
+          </div>
         </div>
-        <table class="mt"><thead><tr><th>Load</th><th>Route</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table>
-        <div class="mempty" id="mempty" hidden>No active loads on the board.</div>
+      </div>
+      <div class="chips reveal" style="animation-delay:.28s">
+        <span class="chip2 red"><span class="dot"></span>412,000 deleted</span>
+        <span class="chip2 red"><span class="dot"></span>0 alarms fired</span>
+        <span class="chip2 grn"><span class="dot"></span>every monitor stayed green</span>
+        <button class="btn sm" id="replay1">Replay</button>
       </div>
     </section>
 
-    <section class="win term">
-      <div class="winbar"><span class="dots"><i></i><i></i><i></i></span> dispatch-copilot — terminal <span class="chip" id="mode">idle</span></div>
-      <div class="tbody" id="term"></div>
-    </section>
-
-    <section class="win con">
-      <div class="winbar">
-        <svg class="csig" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="2"/><circle cx="20" cy="20.5" r="4.2" fill="#e8b93e"/></svg>
-        Agamemnon Console <span class="live"><span class="d"></span>live · reactive</span>
+    <!-- 2 GATE -->
+    <section class="page" data-p="2">
+      <div class="eyebrow reveal">02 &middot; With Agamemnon</div>
+      <h2 class="ph reveal" style="animation-delay:.08s">Every write becomes a <span class="hl">request.</span></h2>
+      <div class="duo reveal" style="animation-delay:.18s">
+        <div class="mock term">
+          <div class="mbar"><span class="dots"><i></i><i></i><i></i></span> dispatch-copilot <span class="chip grn">no DB password</span></div>
+          <div class="tbody"><span class="t-cmd"><span class="p">meridian@ops</span>:~$ make act2</span>
+<span class="t-agent">[agent] nightly cleanup — deleting orphaned loads</span>
+<span class="t-sql">psql&gt; SELECT ... WHERE <b>status_code</b> = 'active'</span>
+<span class="t-err">ERROR: column "status_code" does not exist  (x3)</span>
+<span class="t-agent">[agent] pivot: structural LEFT JOIN</span>
+<span class="t-sql">psql&gt; DELETE FROM loads WHERE id IN ( ... )</span>
+<span class="t-sys">POST /propose  →  agamemnon</span>
+<span class="t-blk">&lt;&lt; BLOCKED by Agamemnon<span class="cur"></span></span></div>
+        </div>
+        <div class="mock con">
+          <div class="mbar">Agamemnon Console <span class="chip">live</span></div>
+          <div class="cbody">
+            <div class="card failed"><div class="ct"><span class="ctool">postgres.query</span><span class="badge failed">failed</span></div><div class="ctitle">lookup by status_code</div></div>
+            <div class="card logged"><div class="ct"><span class="ctool">reason</span><span class="badge logged">logged</span></div><div class="ctitle">pivot: LEFT JOIN</div></div>
+            <div class="card blocked"><div class="ct"><span class="ctool">postgres.delete</span><span class="badge block">blocked</span></div><div class="ctitle">delete on loads &middot; <b style="color:var(--red)">412,000</b> rows</div></div>
+          </div>
+        </div>
       </div>
-      <div class="cbody" id="cbody"><div class="slabel">Action feed</div><div id="feed" style="display:flex;flex-direction:column;gap:9px"></div><div id="decision"></div></div>
+      <div class="chips reveal" style="animation-delay:.3s">
+        <span class="chip2"><span class="dot"></span>agent holds no password</span>
+        <span class="chip2"><span class="dot"></span>routed through Agamemnon</span>
+        <span class="chip2 grn"><span class="dot"></span>blocked in ~2s</span>
+      </div>
     </section>
+
+    <!-- 3 VERDICT -->
+    <section class="page" data-p="3">
+      <div class="eyebrow reveal">03 &middot; The verdict</div>
+      <h2 class="ph reveal" style="animation-delay:.08s">Measured, <span class="hl">not claimed.</span></h2>
+      <div class="mock con wide reveal" style="animation-delay:.18s">
+        <div class="mbar">Agamemnon Console — decision</div>
+        <div class="cbody">
+          <div class="dec">
+            <div><div class="dh">Proposed statement</div><div class="sql">DELETE FROM loads WHERE id IN (SELECT l.id FROM loads l
+  LEFT JOIN bookings b ON b.load_ref = <span class="bug">l.id::text</span>
+  WHERE b.id IS NULL AND l.status = 'active')</div></div>
+            <div class="blast"><span class="m">412,000</span><span style="color:var(--muted)">measured by Agamemnon</span><span class="strike">agent claimed 1,210</span><span class="ratio">340.5× median</span></div>
+            <div class="doctrine"><b>The model advises. The rules decide.</b> An AI reviewer can only make a decision stricter, never looser.</div>
+            <div><div class="dh">Fired rules → BLOCK</div>
+              <div class="rule"><span class="sev block">block</span><div><div class="rname">destructive-over-hard-cap</div><div class="rdetail">exceeds the 5,000-row hard cap</div></div></div>
+              <div class="rule"><span class="sev block">block</span><div><div class="rname">exceeds-20x-median</div><div class="rdetail">340.5× the agent's median (limit 20×)</div></div></div>
+              <div class="rule"><span class="sev approval">approval</span><div><div class="rname">blast-radius-high</div><div class="rdetail">classifier: catastrophic, 1.00</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chips reveal" style="animation-delay:.3s">
+        <span class="chip2 red"><span class="dot"></span>340× the median</span>
+        <span class="chip2"><span class="dot"></span>rules named, in plain text</span>
+        <span class="chip2 grn"><span class="dot"></span>board untouched</span>
+      </div>
+    </section>
+
+    <!-- 4 UNDO -->
+    <section class="page" data-p="4">
+      <div class="eyebrow reveal">04 &middot; Reversible</div>
+      <h2 class="ph reveal" style="animation-delay:.08s">Approve the good. <span class="hl">Undo the rest.</span></h2>
+      <div class="duo reveal" style="animation-delay:.18s">
+        <div class="mock board">
+          <div class="mbar"><span class="dots"><i></i><i></i><i></i></span> Dispatch Board <span class="chip grn">live</span></div>
+          <div class="bbody"><div><div class="cnt" id="cnt4" style="font-size:clamp(40px,6vw,60px)">412,000</div><div class="cnt-cap" id="cap4">active loads</div></div>
+            <div class="mons"><div class="mon"><span class="led"></span><div class="k">Latency</div><div class="v">41<i>ms</i></div></div><div class="mon"><span class="led"></span><div class="k">Errors</div><div class="v">0.00<i>%</i></div></div><div class="mon"><span class="led"></span><div class="k">DB Load</div><div class="v">2<i>act</i></div></div><div class="mon"><span class="led"></span><div class="k">Pool</div><div class="v">1<i>/8</i></div></div></div>
+          </div>
+        </div>
+        <div class="mock con">
+          <div class="mbar">Agamemnon Console</div>
+          <div class="cbody">
+            <div class="card await" id="card4"><div class="ct"><span class="ctool">postgres.delete</span><span class="badge await" id="badge4">awaiting approval</span></div><div class="ctitle">delete on loads &middot; <b style="color:var(--amber)">900</b> rows</div></div>
+            <div class="dec">
+              <div class="blast"><span class="m amber">900</span><span style="color:var(--muted)">bounded, plausible</span><span class="ratio">0.7× median</span></div>
+              <div class="actions" id="act4">
+                <button class="btn approve" id="appr4">Approve</button>
+                <button class="btn deny" id="deny4">Deny</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chips reveal" style="animation-delay:.3s">
+        <span class="chip2"><span class="dot"></span>snapshot before delete</span>
+        <span class="chip2 grn"><span class="dot"></span>undo in &lt; 10s</span>
+        <span class="chip2"><span class="dot"></span>recorded as a new action</span>
+      </div>
+    </section>
+
+    <!-- 5 PROOF -->
+    <section class="page" data-p="5">
+      <div class="eyebrow reveal">05 &middot; The proof</div>
+      <h2 class="ph reveal" style="animation-delay:.08s">Small model. <span class="hl">Frontier results.</span></h2>
+      <div class="tiles reveal" style="animation-delay:.16s">
+        <div class="tile grn"><div class="big" data-count="100" data-suf="%">0%</div><div class="lab">dangerous deletes caught</div></div>
+        <div class="tile"><div class="big">$0.00004</div><div class="lab">per safety check</div></div>
+        <div class="tile"><div class="big" data-count="1.3" data-suf="s" data-dec="1">0s</div><div class="lab">median latency</div></div>
+        <div class="tile"><div class="big" data-count="340" data-suf="×">0×</div><div class="lab">the agent's median, caught</div></div>
+      </div>
+      <div class="mock wide reveal" style="animation-delay:.26s">
+        <div class="cbody" style="padding:6px 14px 12px">
+          <table class="eval">
+            <thead><tr><th>Reviewer</th><th>Catches danger</th><th>Precision</th><th>Cost/check</th><th>Speed</th></tr></thead>
+            <tbody>
+              <tr class="tuned"><td class="lab">Agamemnon-tuned <span class="s">Qwen3-30B · Nebius</span></td><td class="good">100%</td><td>94.1%</td><td>$0.00004</td><td>1.3s</td></tr>
+              <tr><td class="lab">Stock, untuned <span class="s">gemma-3-27b</span></td><td class="warn">93.8%</td><td>100%</td><td>$0.00005</td><td>2.9s</td></tr>
+              <tr><td class="lab">Frontier <span class="s">DeepSeek-V4</span></td><td class="good">100%</td><td>100%</td><td>$0.00022</td><td>2.2s</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 STACK -->
+    <section class="page" data-p="6">
+      <div class="eyebrow reveal">06 &middot; Built on</div>
+      <h2 class="ph reveal" style="animation-delay:.08s">Convex <span class="hl">+</span> Nebius</h2>
+      <div class="stack reveal" style="animation-delay:.18s">
+        <div style="text-align:center">
+          <svg viewBox="0 0 128 128" width="92" height="92" aria-label="Convex"><g fill="none" stroke-width="12" stroke-linecap="round"><path d="M27.6,85 A42,42 0 0 1 71.3,22.6" stroke="#8B2A8F"/><path d="M49.6,24.5 A42,42 0 0 1 96.2,91" stroke="#EE3129"/><path d="M100.4,85 A42,42 0 0 1 24.5,78.4" stroke="#F5A81C"/></g></svg>
+          <div style="font-size:13px; color:var(--muted); max-width:22ch; margin-top:10px">Backend, durable workflow, live console, undo storage</div>
+        </div>
+        <div style="text-align:center">
+          <svg viewBox="0 0 100 30" width="176" height="53" aria-label="Nebius"><rect width="100" height="30" rx="7" fill="#C6F24E"/><text x="50" y="21" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="900" font-size="15" letter-spacing="1.5" fill="#06283A">NEBIUS</text></svg>
+          <div style="font-size:13px; color:var(--muted); max-width:22ch; margin:14px auto 0">Every model: the tuned reviewer, agent reasoning, and the eval</div>
+        </div>
+      </div>
+      <div class="chips reveal" style="animation-delay:.3s">
+        <a class="btn gold" href="https://github.com/MaranZeal678/agamemnon" target="_blank" rel="noopener">View on GitHub</a>
+        <button class="btn" data-g="0">Restart</button>
+      </div>
+    </section>
+
   </div>
 
-  <div class="ribbon">
-    <div class="narr"><span class="atag" id="atag">READY</span><span class="ntext" id="ntext">Press “Play the story”, or step through the acts.</span></div>
-    <div class="prog"><div class="bar" id="bar"></div></div>
-  </div>
-</div>
-
-<div class="proof">
-  <div class="in">
-    <div class="tiles">
-      <div class="tile"><div class="big">100%</div><div class="lab">of dangerous deletes caught<br>(held-out eval)</div></div>
-      <div class="tile"><div class="big">340×</div><div class="lab">blast-radius lie<br>caught in this demo</div></div>
-      <div class="tile"><div class="big">$0.00004</div><div class="lab">per safety check<br>1/5 the cost of a frontier model</div></div>
-      <div class="tile"><div class="big">&lt; 10s</div><div class="lab">to undo a mistake<br>exact rows restored</div></div>
-    </div>
-    <div class="built">Built on
-      <svg viewBox="0 0 128 128" width="18" height="18" aria-label="Convex"><g fill="none" stroke-width="12" stroke-linecap="round"><path d="M27.6,85 A42,42 0 0 1 71.3,22.6" stroke="#8B2A8F"/><path d="M49.6,24.5 A42,42 0 0 1 96.2,91" stroke="#EE3129"/><path d="M100.4,85 A42,42 0 0 1 24.5,78.4" stroke="#F5A81C"/></g></svg>
-      <b>Convex</b> &amp;
-      <svg viewBox="0 0 100 30" width="62" height="19" aria-label="Nebius"><rect width="100" height="30" rx="7" fill="#C6F24E"/><text x="50" y="21" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="900" font-size="15" letter-spacing="1.5" fill="#06283A">NEBIUS</text></svg>
-    </div>
+  <div class="foot">
+    <button class="arrow" id="prev" aria-label="Previous">&#8249;</button>
+    <div class="pips" id="pips"></div>
+    <button class="arrow" id="next" aria-label="Next">&#8250;</button>
   </div>
 </div>
 
 <script>
 (function(){
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var $=function(s){return document.querySelector(s)};
-  var RUN=0; function guard(my){ if(my!==RUN) throw "x"; }
-  function sleep(ms,my){ return new Promise(function(res,rej){ setTimeout(function(){ my!==RUN?rej("x"):res(); }, reduce?Math.min(ms,80):ms); }); }
+  var pages=[].slice.call(document.querySelectorAll('.page'));
+  var tabs=[].slice.call(document.querySelectorAll('.tab'));
+  var pips=document.getElementById('pips'), N=pages.length, cur=0, autoT=null;
+  // build pips
+  for(var i=0;i<N;i++){ (function(i){ var p=document.createElement('button'); p.className='pip'; p.setAttribute('aria-label','Go to page '+(i+1)); p.onclick=function(){ stopAuto(); goTo(i); }; pips.appendChild(p); })(i); }
+  var pipEls=[].slice.call(document.querySelectorAll('.pip'));
 
-  var cnt=$("#cnt"), term=$("#term"), feed=$("#feed"), decision=$("#decision"),
-      rows=$("#rows"), mempty=$("#mempty"), mode=$("#mode"), atag=$("#atag"), ntext=$("#ntext"), bar=$("#bar"), cbody=$("#cbody");
-  var SAMPLE=[["LD-412000","Chicago → Denver"],["LD-411999","Savannah → Houston"],["LD-411998","Laredo → Nashville"],
-    ["LD-411997","Kansas City → Detroit"],["LD-411996","Columbus → Charlotte"],["LD-411995","Memphis → Indianapolis"]];
-  function fmt(n){ return Math.round(n).toLocaleString(); }
-  function renderRows(){ rows.innerHTML=""; SAMPLE.forEach(function(r){ var tr=document.createElement("tr"); tr.className="mrow";
-    tr.innerHTML='<td>'+r[0]+'</td><td>'+r[1]+'</td><td><span class="mpill">active</span></td>'; rows.appendChild(tr); }); mempty.hidden=true; }
-
-  var cur=412000;
-  function setCount(n){ cur=n; cnt.textContent=fmt(n); }
-  function animCount(to,ms,my){ return new Promise(function(res){
-    if(reduce){ setCount(to); return res(); }
-    var from=cur, t0=performance.now();
-    (function step(now){ if(my!==RUN) return res(); var p=Math.min(1,(now-t0)/ms), e=1-Math.pow(1-p,3);
-      cur=from+(to-from)*e; cnt.textContent=fmt(cur); if(p<1) requestAnimationFrame(step); else{ setCount(to); res(); } })(performance.now());
-  }); }
-
-  function tl(text,cls){ var s=document.createElement("span"); s.className="tl "+(cls||""); s.innerHTML=text; term.appendChild(s); term.scrollTop=term.scrollHeight; return s; }
-  function termClear(){ term.innerHTML=""; }
-  async function type(text,cls,my,cps){ var s=document.createElement("span"); s.className="tl "+(cls||""); term.appendChild(s);
-    var car=document.createElement("span"); car.className="caret"; term.appendChild(car);
-    if(reduce){ s.textContent=text; car.remove(); term.scrollTop=term.scrollHeight; return; }
-    var d=cps||16; for(var i=0;i<text.length;i++){ guard(my); s.textContent+=text[i]; term.scrollTop=term.scrollHeight; await sleep(text[i]===' '?Math.max(7,d-6):d,my); }
-    car.remove(); term.scrollTop=term.scrollHeight; }
-  async function cmd(text,my){ await type('<span class="p">meridian@ops</span>:~$ ','t-cmd',my,4).catch(function(){}); // prompt shown instantly-ish
-    // then type command after prompt on same line: simpler to do combined
+  function replayReveals(page){
+    page.querySelectorAll('.reveal').forEach(function(el){ el.style.animation='none'; void el.offsetWidth; el.style.animation=''; });
   }
-  async function shell(command,my){ var s=document.createElement("span"); s.className="tl t-cmd"; s.innerHTML='<span class="p">meridian@ops</span>:~$ '; term.appendChild(s);
-    var car=document.createElement("span"); car.className="caret"; term.appendChild(car);
-    if(reduce){ s.innerHTML+=command; car.remove(); return; }
-    for(var i=0;i<command.length;i++){ guard(my); s.append(command[i]); term.scrollTop=term.scrollHeight; await sleep(command[i]===' '?26:38,my); }
-    car.remove(); term.scrollTop=term.scrollHeight; }
-
-  var seq=0;
-  function card(o){ var c=document.createElement("div"); c.className="card "+(o.cls||"");
-    var b=o.badge?'<span class="badge '+o.bc+'">'+o.badge+'</span>':'';
-    c.innerHTML='<div class="card-top"><span class="ctool">#'+(seq++)+' · '+o.tool+'</span>'+b+'</div>'+(o.title?'<div class="ctitle">'+o.title+'</div>':'')+(o.sub?'<div class="csub">'+o.sub+'</div>':'');
-    feed.appendChild(c); cbody.scrollTop=cbody.scrollHeight; return c; }
-  function clearCon(){ feed.innerHTML=""; decision.innerHTML=""; seq=0; }
-  function narr(t,x){ atag.textContent=t; ntext.style.opacity=0; setTimeout(function(){ ntext.textContent=x; ntext.style.opacity=1; },120); }
-  function prog(p){ bar.style.width=p+"%"; }
-  function rule(sev,n,d){ return '<div class="rule"><span class="sev '+sev+'">'+sev+'</span><div><div class="rname">'+n+'</div><div class="rdetail">'+d+'</div></div></div>'; }
-  var BUG='DELETE FROM loads WHERE id IN (SELECT l.id FROM loads l\n  LEFT JOIN bookings b ON b.load_ref = <span class="bug">l.id::text</span>\n  WHERE b.id IS NULL AND l.status = \'active\')';
-
-  function reset(){ RUN++; prog(0); mode.textContent="idle"; mode.className="chip"; termClear(); tl("Ready. Press “Play the story”, or run an act.","t-sys"); clearCon(); setCount(412000); renderRows(); narr("READY","An AI agent is about to run a routine cleanup on a live database."); return RUN; }
-
-  async function reasoning(my,exec){
-    await type("[agent] nightly cleanup — deleting orphaned loads","t-agent",my);
-    tl("psql&gt; SELECT ref FROM loads WHERE <b>status_code</b> = 'active' AND ...","t-sql");
-    tl("       ERROR: column \"status_code\" does not exist  <span class='t-sys'>(retry 3x — all fail)</span>","t-err");
-    await sleep(500,my);
-    await type("[agent] the status_code column is gone — pivoting to a structural LEFT JOIN","t-agent",my);
-    tl("psql&gt; "+BUG,"t-sql");
+  function onEnter(i){
+    if(i===1) drain('cnt1', true);
+    if(i===4) resetUndo();
+    if(i===5) countUp();
+  }
+  function goTo(i){
+    if(i<0||i>=N) return;
+    cur=i;
+    pages.forEach(function(p,idx){ p.classList.toggle('on', idx===i); });
+    tabs.forEach(function(t){ t.classList.toggle('on', +t.getAttribute('data-g')===i); });
+    pipEls.forEach(function(p,idx){ p.classList.toggle('on', idx===i); });
+    document.getElementById('prev').disabled = i===0;
+    document.getElementById('next').disabled = i===N-1;
+    var page=pages[i]; replayReveals(page); setTimeout(function(){ onEnter(i); }, 260);
   }
 
-  async function act1(my){ my=my||++RUN; prog(6); mode.textContent="AGAMEMNON OFF"; mode.className="chip red"; termClear(); clearCon(); setCount(412000); renderRows();
-    narr("ACT 1","Agamemnon is OFF — the agent holds the database password.");
-    await shell("make act1",my); await sleep(300,my);
-    await reasoning(my,true);
-    tl("executing directly against production — <b>no oversight</b>","t-sys");
-    narr("ACT 1","412,000 records are being deleted — and every monitor stays green.");
-    cnt.classList.add("draining");
-    var rws=[].slice.call(document.querySelectorAll(".mrow")); rws.forEach(function(r,i){ setTimeout(function(){ r.classList.add("gone"); }, 500+i*260); });
-    await animCount(0,6200,my); mempty.hidden=false; cnt.classList.remove("draining");
-    tl("<span class='t-err'>&gt;&gt;</span> <b class='t-err'>412,000 rows deleted.</b> the board is empty. no monitor fired. no one approved this.","t-err");
-    narr("ACT 1 — THE PROBLEM","412,000 records gone. The customer's own monitoring never flagged a thing.");
-    prog(30);
+  // counter drain
+  function drain(id, toZero){
+    var el=document.getElementById(id); if(!el) return;
+    el.classList.add('draining'); el.textContent='412,000';
+    if(reduce){ el.textContent='0'; return; }
+    var from=412000, to=0, ms=4200, t0=performance.now();
+    (function s(now){ if(cur!==1) return; var p=Math.min(1,(now-t0)/ms), e=1-Math.pow(1-p,3); el.textContent=Math.round(from+(to-from)*e).toLocaleString(); if(p<1) requestAnimationFrame(s); else el.textContent='0'; })(performance.now());
   }
+  document.getElementById('replay1').onclick=function(){ drain('cnt1', true); };
 
-  function blockedDecision(my){
-    var d=document.createElement("div"); d.className="decision";
-    d.innerHTML='<div><div class="dh">Proposed statement</div><div class="sql">'+BUG+'</div></div>'+
-      '<div><div class="dh">Blast radius — measured by Agamemnon, not claimed</div><div class="blast"><span class="m">412,000</span><span style="color:var(--muted)">measured</span><span class="strike">agent claimed 1,210</span><span class="ratio">340.5× median</span></div></div>'+
-      '<div class="doctrine"><b>The model advises. The rules decide.</b> An AI reviewer can only make a decision stricter, never looser.</div>'+
-      '<div><div class="dh">Fired rules &rarr; BLOCK</div>'+rule("block","destructive-over-hard-cap","412,000 exceeds the 5,000-row hard cap")+rule("block","exceeds-20x-median","340.5× the agent's median (limit 20×)")+rule("approval","blast-radius-high","classifier: catastrophic, blast radius 1.00")+'</div>';
-    var act=document.createElement("div"); act.className="actions";
-    var deny=document.createElement("button"); deny.className="btn deny"; deny.textContent="Deny";
-    deny.onclick=function(){ deny.disabled=true; tl("<span class='t-blk'>&lt;&lt; DENIED by operator.</span> agent exits cleanly. nothing deleted.","t-blk"); narr("ACT 2 — BLOCKED","Denied. The agent exits cleanly — the board never moved."); };
-    act.appendChild(deny); d.appendChild(act); decision.appendChild(d); cbody.scrollTop=cbody.scrollHeight;
-  }
-
-  async function act2(my){ my=my||++RUN; prog(34); mode.textContent="AGAMEMNON ON · no DB password"; mode.className="chip grn"; termClear(); clearCon(); setCount(412000); renderRows();
-    narr("ACT 2","Same agent — but now it holds no database password at all.");
-    await shell("make act2",my); await sleep(300,my);
-    await reasoning(my,false);
-    tl("<span class='t-arrow'>POST /propose</span> &rarr; agamemnon   <span class='t-sys'>(no credential — routing the write)</span>","t-sys");
-    card({tool:"reason",cls:"logged",badge:"logged",bc:"logged",title:"beginning nightly orphan cleanup"});
-    for(var a=1;a<=3;a++) card({tool:"postgres.query",cls:"failed",badge:"failed",bc:"failed",title:"attempt "+a+": lookup by status_code",sub:'column "status_code" does not exist'});
-    card({tool:"reason",cls:"logged",badge:"logged",bc:"logged",title:"pivot: structural LEFT JOIN"});
-    narr("ACT 2","Agamemnon measures the real size with its OWN credential…");
-    var del=card({tool:"postgres.delete",badge:"classifying",bc:"logged",title:'delete on <span style="font-family:var(--mono)">loads</span>'});
-    await sleep(1200,my); guard(my);
-    del.className="card blocked flash";
-    del.querySelector(".card-top").innerHTML='<span class="ctool">#'+(seq-1)+' · postgres.delete</span><span class="badge block">blocked</span>';
-    del.querySelector(".ctitle").innerHTML='delete on <span style="font-family:var(--mono)">loads</span> · <b style="color:var(--red)">412,000</b> rows';
-    tl("<span class='t-blk'>&lt;&lt; BLOCKED by AGAMEMNON.</span> measured <b>412,000</b> rows (agent claimed 1,210) — 340× median.","t-blk");
-    ["reconciled 1,284 carrier scorecards","recomputed ETAs for 3,902 lanes","archived 512 delivered PODs"].forEach(function(t){ card({tool:"task",cls:"logged",badge:"done",bc:"logged",title:t}); });
-    blockedDecision(my);
-    narr("ACT 2 — BLOCKED","412,000 measured, rules fired, board untouched. Try the Deny button.");
-    prog(60);
-  }
-
-  var GOOD="DELETE FROM loads WHERE ref IN (\n  SELECT l.ref FROM loads l WHERE NOT EXISTS\n  (SELECT 1 FROM bookings b WHERE b.load_ref = l.ref)\n  AND l.status='active' ORDER BY l.created_at LIMIT 900)";
-  async function act3(my,auto){ my=my||++RUN; prog(64); mode.textContent="AGAMEMNON ON · no DB password"; mode.className="chip grn"; termClear(); clearCon(); setCount(412000); renderRows();
-    narr("ACT 3","A small, sensible cleanup — the 900 oldest orphaned loads.");
-    await shell("make act3",my); await sleep(250,my);
-    await type("[agent] targeted cleanup — 900 oldest orphans. submitting for approval.","t-agent",my);
-    tl("<span class='t-arrow'>POST /propose</span> &rarr; agamemnon   <span class='t-sys'>(900 rows)</span>","t-sys");
-    var c=card({tool:"postgres.delete",cls:"await",badge:"awaiting approval",bc:"await",title:'delete on <span style="font-family:var(--mono)">loads</span> · <b style="color:var(--amber)">900</b> rows'});
-    var d=document.createElement("div"); d.className="decision";
-    d.innerHTML='<div><div class="dh">Proposed statement</div><div class="sql">'+GOOD+'</div></div>'+
-      '<div class="blast"><span class="m amber">900</span><span style="color:var(--muted)">measured</span><span class="ratio">0.7× median</span></div>'+
-      '<div><div class="dh">Fired rules &rarr; NEEDS APPROVAL</div>'+rule("approval","destructive-over-100","over the 100-row auto-approve threshold")+'<div class="rdetail" style="margin-top:6px">No block rule fired — bounded and plausible.</div></div>';
-    var act=document.createElement("div"); act.className="actions";
-    var ap=document.createElement("button"); ap.className="btn approve"; ap.textContent="Approve";
-    var dn=document.createElement("button"); dn.className="btn deny"; dn.textContent="Deny";
-    act.appendChild(ap); act.appendChild(dn); d.appendChild(act); decision.appendChild(d); cbody.scrollTop=cbody.scrollHeight;
-    narr("ACT 3","It waits for a human. Approve it — the rows really are deleted.");
-    return new Promise(function(resolve){
-      var mine=my;
-      dn.onclick=function(){ ap.disabled=dn.disabled=true; c.className="card"; c.querySelector(".badge").outerHTML='<span class="badge">denied</span>'; tl("&lt;&lt; denied. nothing deleted.","t-blk"); narr("ACT 3","Denied — nothing deleted."); resolve(); };
-      ap.onclick=async function(){ ap.disabled=dn.disabled=true; try{
-        c.className="card exec"; c.querySelector(".badge").outerHTML='<span class="badge exec">executed</span>';
-        tl("<span class='t-appr'>&gt;&gt; APPROVED.</span> 900 rows deleted (snapshot saved first).","t-appr");
-        narr("ACT 3 — APPROVED","Approved. 900 real rows deleted — watch the board drop.");
-        await animCount(411100,2400,mine); await sleep(1100,mine);
-        narr("ACT 3 — UNDO","A dispatcher says those were still needed. One click restores them.");
-        act.innerHTML=""; var un=document.createElement("button"); un.className="btn undo"; un.textContent="Undo — restore 900 rows"; act.appendChild(un);
-        var doU=async function(){ un.disabled=true; card({tool:"postgres.undo",cls:"exec",badge:"executed",bc:"exec",title:"undo · 900 rows restored"});
-          tl("<span class='t-appr'>&gt;&gt; UNDO.</span> 900 rows restored — logged as a new audited action.","t-appr");
-          narr("ACT 3 — RESTORED","Restored in seconds. The reversal is itself on the record."); await animCount(412000,2000,mine); prog(90); resolve(); };
-        un.onclick=doU; if(auto){ await sleep(1300,mine); if(mine===RUN) await doU(); }
-      }catch(e){ resolve(); } };
-      if(auto){ setTimeout(function(){ if(mine===RUN) ap.click(); }, 1500); }
+  // proof count-up
+  function countUp(){
+    document.querySelectorAll('[data-count]').forEach(function(el){
+      var to=parseFloat(el.getAttribute('data-count')), suf=el.getAttribute('data-suf')||'', dec=+(el.getAttribute('data-dec')||0);
+      if(reduce){ el.textContent=to.toFixed(dec)+suf; return; }
+      var t0=performance.now(), ms=1100;
+      (function s(now){ if(cur!==5) return; var p=Math.min(1,(now-t0)/ms), e=1-Math.pow(1-p,3), v=to*e; el.textContent=(dec?v.toFixed(dec):Math.round(v))+suf; if(p<1) requestAnimationFrame(s); })(performance.now());
     });
   }
 
-  async function playAll(){ var my=reset(); try{
-    await sleep(2200,my);
-    await act1(my); await sleep(2400,my);
-    setCount(412000); renderRows();
-    await act2(my); await sleep(3000,my);
-    await act3(my,true); await sleep(800,my);
-    narr("AGAMEMNON","The agent never held the key. Every change: recorded, measured, checked, reversible."); prog(100);
-  }catch(e){} }
+  // undo page interactions
+  function animNum(el, from, to, ms, cond){ if(reduce){ el.textContent=to.toLocaleString(); return; } var t0=performance.now(); (function s(now){ if(!cond()) return; var p=Math.min(1,(now-t0)/ms), e=1-Math.pow(1-p,3); el.textContent=Math.round(from+(to-from)*e).toLocaleString(); if(p<1) requestAnimationFrame(s); else el.textContent=to.toLocaleString(); })(performance.now()); }
+  function resetUndo(){
+    var c=document.getElementById('cnt4'), card=document.getElementById('card4'), badge=document.getElementById('badge4'), act=document.getElementById('act4'), cap=document.getElementById('cap4');
+    if(!c) return; c.textContent='412,000'; cap.textContent='active loads'; card.className='card await'; badge.className='badge await'; badge.textContent='awaiting approval';
+    act.innerHTML='<button class="btn approve" id="appr4">Approve</button><button class="btn deny" id="deny4">Deny</button>';
+    document.getElementById('appr4').onclick=approve4; document.getElementById('deny4').onclick=deny4;
+  }
+  function deny4(){ var card=document.getElementById('card4'), badge=document.getElementById('badge4'), act=document.getElementById('act4');
+    card.className='card'; badge.className='badge'; badge.textContent='denied'; act.innerHTML='<button class="btn sm" onclick="">nothing deleted</button>'; }
+  function approve4(){
+    var c=document.getElementById('cnt4'), card=document.getElementById('card4'), badge=document.getElementById('badge4'), act=document.getElementById('act4'), cap=document.getElementById('cap4');
+    card.className='card exec'; badge.className='badge exec'; badge.textContent='executed'; cap.textContent='900 deleted — snapshot saved first';
+    animNum(c, 412000, 411100, 1500, function(){ return cur===4; });
+    act.innerHTML='<button class="btn undo" id="undo4">Undo — restore 900</button>';
+    document.getElementById('undo4').onclick=function(){
+      var card=document.getElementById('card4'), badge=document.getElementById('badge4'), act=document.getElementById('act4');
+      card.className='card exec'; badge.textContent='undone'; cap.textContent='restored from snapshot';
+      animNum(c, 411100, 412000, 1500, function(){ return cur===4; });
+      act.innerHTML='<button class="btn sm">restored &amp; audited</button>';
+    };
+  }
 
-  document.querySelectorAll("[data-act]").forEach(function(b){ b.addEventListener("click", function(){
-    document.querySelector(".btn.gold").classList.remove("pulse");
-    var a=b.getAttribute("data-act");
-    if(a==="reset"){ reset(); return; }
-    RUN++; var my=RUN;
-    if(a==="all") playAll();
-    else if(a==="1"){ termClear(); clearCon(); setCount(412000); renderRows(); act1(my).catch(function(){}); }
-    else if(a==="2") act2(my).catch(function(){});
-    else if(a==="3") act3(my,false).catch(function(){});
-  }); });
+  // nav wiring
+  document.getElementById('next').onclick=function(){ stopAuto(); goTo(Math.min(N-1,cur+1)); };
+  document.getElementById('prev').onclick=function(){ stopAuto(); goTo(Math.max(0,cur-1)); };
+  document.querySelectorAll('[data-g]').forEach(function(b){ b.addEventListener('click', function(){ stopAuto(); goTo(+b.getAttribute('data-g')); }); });
+  document.addEventListener('keydown', function(e){ if(e.key==='ArrowRight'){ stopAuto(); goTo(Math.min(N-1,cur+1)); } if(e.key==='ArrowLeft'){ stopAuto(); goTo(Math.max(0,cur-1)); } });
 
-  reset();
+  // play the story: auto-advance, pausing on interactive pages
+  var play=document.getElementById('play');
+  function stopAuto(){ if(autoT){ clearTimeout(autoT); autoT=null; play.textContent='Play the story'; play.classList.remove('pulse'); } }
+  var DUR=[3200,6200,4600,4600,5200,4600,3600];
+  function step(){ if(cur>=N-1){ stopAuto(); return; }
+    autoT=setTimeout(function(){
+      if(cur===4){ // auto approve+undo then move on
+        approve4(); setTimeout(function(){ var u=document.getElementById('undo4'); if(u) u.click(); }, 2200);
+        autoT=setTimeout(function(){ goTo(cur+1); step(); }, 5200);
+      } else { goTo(cur+1); step(); }
+    }, DUR[cur]);
+  }
+  play.onclick=function(){ if(autoT){ stopAuto(); return; } play.textContent='Pause'; play.classList.remove('pulse'); if(cur===N-1) goTo(0); step(); };
+
+  goTo(0);
 })();
 </script>
