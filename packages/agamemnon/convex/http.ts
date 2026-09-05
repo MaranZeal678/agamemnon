@@ -31,7 +31,8 @@ const propose = httpAction(async (ctx, request) => {
   if (!runId || !agent || !tool || !target || !predicate) {
     return json({ error: "runId, agent, tool, target, predicate are required" }, 400);
   }
-  const result = await ctx.runAction(internal.intake.propose, {
+  // Start the durable workflow; the agent polls /status until a terminal decision.
+  const result = await ctx.runMutation(internal.workflow.kickoff, {
     runId: runId as Id<"runs">,
     agent,
     tool,
