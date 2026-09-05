@@ -1,0 +1,22 @@
+# Secrets — never committed. .env.example is the only env file in git.
+.env
+.env.*
+!.env.example
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Convex local state
+.convex/
+
+# OS noise
+.DS_Store
+
+# Test & coverage output
+coverage/
+
+# Demo recordings (backup screen captures are large; store locally only)
+demo/recordings/
