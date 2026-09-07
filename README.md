@@ -206,7 +206,11 @@ packages/meridian/      THE FAKE CUSTOMER (the demo websites)
   db/        the database schema and seed (412,000 records)
   agent/     Dispatch Copilot, the AI agent
 
+packages/agamemnon-guard/   DESKTOP: the guard app (owns data, runs the :7420 server)
+packages/northwind-bank/    DESKTOP: the bank back-office (talks only to the guard)
+
 demo/        SCRIPT.md (what to say) + start/stop/reset
+docs/        RUN-AGAMEMNON.md — desktop apps, the guard API, the reasoning
 ```
 
 **The demo websites are in `packages/meridian/web/`** — same repo, not separate. The live
@@ -214,7 +218,37 @@ dispatch board is at `http://localhost:5173/#/dispatch`.
 
 ---
 
-## Run it yourself
+## Desktop apps (macOS) — the interlinked demo
+
+Two standalone apps you can install and run with **no backend setup**:
+
+- **Northwind Financial** — a bank back-office where an intern manages account records.
+- **Agamemnon** — the guardrail. It owns the records and runs a local guard server on
+  `:7420`; every delete the bank submits is measured, policy-checked, and
+  allowed / held / blocked, with snapshot-backed undo and a live console.
+
+They are genuinely interlinked over HTTP — quit Agamemnon and the bank can't touch data,
+because Agamemnon holds it.
+
+```bash
+open "/Applications/Agamemnon.app"            # start the guard first
+open "/Applications/Northwind Financial.app"  # then the bank
+```
+
+**See the reasoning behind every decision** (the classifier's verdict, each policy rule's
+"why", and the think-then-execute audit trail) with a single call — full commands and real
+output are in **[docs/RUN-AGAMEMNON.md](docs/RUN-AGAMEMNON.md)**:
+
+```bash
+curl -s -X POST http://127.0.0.1:7420/guard/propose -H 'content-type: application/json' \
+  -d '{"selector":{"all":true},"actor":"rogue-agent"}' \
+  | jq '{decision, records: .measuredRows, why_the_classifier: .classifier.rationale,
+         why_the_rules: [.firedRules[] | (.name + " — " + .detail)]}'
+```
+
+---
+
+## Run it yourself (the full Convex + Nebius + Postgres stack)
 
 First-time setup (local database + your Nebius key) is in [SETUP.md](SETUP.md). Then:
 
