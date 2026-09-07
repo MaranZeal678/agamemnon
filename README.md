@@ -3,6 +3,10 @@
 <p align="center">So an autonomous agent can't quietly delete your company — even when it's fully authorised.</p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/licence-proprietary%20%C2%B7%20all%20rights%20reserved-8C2F1E?style=for-the-badge" alt="Proprietary">
+</p>
+
+<p align="center">
   <img src="docs/assets/convex.svg" height="44" alt="Convex">
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <img src="docs/assets/nebius.svg" height="44" alt="Nebius">
@@ -261,3 +265,21 @@ Open the dispatch board at `http://localhost:5173/#/dispatch` and the console at
 
 Real deletes against a real database throughout — nothing is faked behind the screen.
 Built on Convex and Nebius.
+
+---
+
+## Licence
+
+**Proprietary. Copyright (c) 2026 Elamaran Elangovan. All rights reserved.**
+
+This repository is published for demonstration, evaluation and portfolio review
+only. **Publication is not a licence.** You may read it and link to it. You may
+not copy, modify, redistribute, deploy, or use it or any part of it in another
+product, service, dataset or model-training corpus without prior written
+permission.
+
+Every source file carries a copyright notice and a reference identifier; these
+must not be removed or altered. Full terms in [LICENSE](LICENSE); summary in
+[NOTICE](NOTICE).
+
+Licensing enquiries: elango@squareshift.co

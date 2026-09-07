@@ -1,4 +1,15 @@
 /*
+ * Agamemnon — AI-agent write-path guardian
+ * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
+ *
+ * Proprietary and confidential. No licence is granted to use, copy, modify,
+ * distribute, or run this software beyond local evaluation of this repository
+ * as published. See LICENSE at the repository root.
+ *
+ * ref: AGMN-BOZW-F6BTKX-X3LAO
+ */
+
+/*
  * The datastore Agamemnon OWNS. This is the only holder of the records; the bank
  * app has no access except through the guard server. Real persistence to disk,
  * real deletes, real snapshot-backed undo, real audit trail.

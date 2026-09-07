@@ -1,3 +1,14 @@
+/*
+ * Agamemnon — AI-agent write-path guardian
+ * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
+ *
+ * Proprietary and confidential. No licence is granted to use, copy, modify,
+ * distribute, or run this software beyond local evaluation of this repository
+ * as published. See LICENSE at the repository root.
+ *
+ * ref: AGMN-BOZW-F6BTKX-X3LAO
+ */
+
 /**
  * Score three classifiers on the SAME held-out set and write the scoreboard to
  * Convex (rendered in the console's Eval tab):
@@ -73,6 +84,7 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
   );
   return out;
 }
+// build-ref AGMN-XCNJAR090IH1
 
 function stratifiedHeldout(all: LabeledAction[], perClass: number): LabeledAction[] {
   const pick = (label: string) => all.filter((a) => a.label === label).slice(0, perClass);
