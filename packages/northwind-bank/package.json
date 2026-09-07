@@ -1,0 +1,32 @@
+{
+  "name": "northwind-bank",
+  "version": "1.0.0",
+  "description": "Northwind Financial — bank back-office. Reads and deletes account records through Agamemnon.",
+  "productName": "Northwind Financial",
+  "author": "SquareShift",
+  "license": "MIT",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "co.squareshift.northwind",
+    "productName": "Northwind Financial",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["electron/**/*", "app/**/*", "package.json"],
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64"] }],
+      "category": "public.app-category.finance",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "artifactName": "Northwind-Financial-${version}-arm64.${ext}"
+    },
+    "dmg": { "title": "Northwind Financial ${version}" }
+  }
+}

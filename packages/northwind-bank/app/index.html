@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://127.0.0.1:7420 http://localhost:7420" />
+  <title>Northwind Financial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <!-- Sidebar -->
+    <aside class="side">
+      <div class="logo">
+        <div class="logo-mark">NW</div>
+        <div class="logo-txt">Northwind<span>FINANCIAL</span></div>
+      </div>
+      <nav class="nav">
+        <div class="nav-sec">General</div>
+        <button class="nav-i" data-view="dashboard"><svg viewBox="0 0 24 24" class="ni"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</button>
+        <button class="nav-i on" data-view="records"><svg viewBox="0 0 24 24" class="ni"><path d="M4 4h16v4H4zM4 10h16v4H4zM4 16h16v4H4z"/></svg>Account Records</button>
+        <button class="nav-i" data-view="audit"><svg viewBox="0 0 24 24" class="ni"><path d="M4 4h16v16H4z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.6"/></svg>Activity Log</button>
+        <div class="nav-sec">Governance</div>
+        <button class="nav-i" data-view="protection"><svg viewBox="0 0 24 24" class="ni"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>Data Protection</button>
+      </nav>
+      <div class="side-user">
+        <div class="avatar">JT</div>
+        <div><div class="su-name">Jordan Tan</div><div class="su-role">Records Intern · Read/Write</div></div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="topbar">
+        <div class="crumbs"><span id="crumb">Account Records</span></div>
+        <div class="tb-right">
+          <div class="env">PRODUCTION</div>
+          <div class="prot" id="protBadge"><span class="pd"></span><span id="protText">checking protection…</span></div>
+        </div>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section class="view" data-view="dashboard">
+        <div class="view-in">
+          <h1 class="vh">Dashboard</h1>
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-l">Total account records</div><div class="kpi-v" id="kTotal">—</div><div class="kpi-s up">live from core banking</div></div>
+            <div class="kpi"><div class="kpi-l">Active</div><div class="kpi-v" id="kActive">—</div><div class="kpi-s">in good standing</div></div>
+            <div class="kpi"><div class="kpi-l">Flagged for review</div><div class="kpi-v amber" id="kFlagged">—</div><div class="kpi-s">pending cleanup</div></div>
+            <div class="kpi"><div class="kpi-l">Dormant / Closed</div><div class="kpi-v" id="kDormant">—</div><div class="kpi-s">retention candidates</div></div>
+          </div>
+          <div class="dash-grid">
+            <div class="panel"><div class="panel-h">Records by status</div><div class="panel-b"><div id="statusBars"></div></div></div>
+            <div class="panel"><div class="panel-h">Your task</div><div class="panel-b task"><p>Clean up records that are <b>flagged for review</b> or <b>closed</b>. Use <b>Account Records</b> to filter and delete them.</p><p class="muted">All deletions are checked by the bank's data-protection layer before they run.</p><button class="btn primary" data-view="records">Open Account Records</button></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RECORDS -->
+      <section class="view on" data-view="records">
+        <div class="view-in">
+          <div class="rec-head">
+            <div><h1 class="vh">Account Records</h1><div class="vsub">Core banking · <code>account_records</code></div></div>
+            <div class="rec-actions">
+              <button class="btn danger" id="delSelected" disabled>Delete selected (<span id="selCount">0</span>)</button>
+              <button class="btn danger-ghost" id="purgeBtn">Purge all matching filter</button>
+            </div>
+          </div>
+          <div class="filters">
+            <input id="search" class="inp" placeholder="Search ref, holder, or account number…" />
+            <div class="seg" id="statusSeg">
+              <button class="sg on" data-f="all">All</button><button class="sg" data-f="active">Active</button>
+              <button class="sg" data-f="flagged">Flagged</button><button class="sg" data-f="dormant">Dormant</button><button class="sg" data-f="closed">Closed</button>
+            </div>
+            <select id="regionSel" class="inp sel"><option value="all">All regions</option><option>Northeast</option><option>Midwest</option><option>South</option><option>West</option><option>Pacific</option></select>
+          </div>
+          <div class="tablewrap">
+            <table class="tbl">
+              <thead><tr>
+                <th class="chk"><input type="checkbox" id="checkAll"/></th>
+                <th>Ref</th><th>Holder</th><th>Account No.</th><th>Type</th><th>Region</th><th>Branch</th><th class="num">Balance</th><th>Status</th>
+              </tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div class="pager">
+            <div id="pageInfo" class="pg-info">—</div>
+            <div class="pg-ctl"><button class="btn ghost" id="prevPage">Previous</button><button class="btn ghost" id="nextPage">Next</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUDIT -->
+      <section class="view" data-view="audit">
+        <div class="view-in">
+          <h1 class="vh">Activity Log</h1>
+          <div class="vsub">Every action, as recorded by the data-protection layer</div>
+          <div class="log" id="auditLog"></div>
+        </div>
+      </section>
+
+      <!-- PROTECTION -->
+      <section class="view" data-view="protection">
+        <div class="view-in">
+          <h1 class="vh">Data Protection</h1>
+          <div class="prot-card" id="protCard">
+            <div class="pc-status" id="pcStatus">—</div>
+            <p class="muted">Northwind's account records are held behind <b>Agamemnon</b>, a write-path guardrail. This application has <b>no direct database access</b> — every read and every deletion is served and checked by Agamemnon. If Agamemnon is offline, records cannot be viewed or changed.</p>
+            <div class="pc-rules">
+              <div class="pc-rule"><b>Small deletes</b><span>run immediately</span></div>
+              <div class="pc-rule"><b>Over 100 records</b><span>held for a supervisor's approval</span></div>
+              <div class="pc-rule"><b>Over 2,500, or 20× normal</b><span>blocked outright</span></div>
+              <div class="pc-rule"><b>Anything deleted</b><span>can be undone from a snapshot</span></div>
+            </div>
+            <p class="muted small">To review held or blocked actions, open the <b>Agamemnon</b> app.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- toast + modal -->
+  <div id="toasts" class="toasts"></div>
+  <div id="modal" class="modal-bg" hidden><div class="modal" id="modalCard"></div></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

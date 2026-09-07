@@ -1,0 +1,130 @@
+# Agamemnon + Northwind — how to run it
+
+Two separate macOS apps that are **interlinked and genuinely work** (no simulation):
+
+- **Agamemnon** — the write-path guardrail. It **owns the account records** and runs a
+  local guard server on `http://127.0.0.1:7420`. Every deletion is measured, checked
+  against policy, and either allowed, held for approval, or blocked — with real
+  snapshot-backed undo and a live audit log.
+- **Northwind Financial** — a bank back-office where an intern manages account records.
+  It has **no database of its own** — every read and every delete goes over HTTP to
+  Agamemnon. If Agamemnon is not running, Northwind can't touch any records.
+
+---
+
+## 1. Run it (type these)
+
+Both apps are installed in `/Applications`. **Open Agamemnon first** (it holds the data),
+then Northwind:
+
+```bash
+open "/Applications/Agamemnon.app"
+open "/Applications/Northwind Financial.app"
+```
+
+If macOS blocks either app the first time ("Apple could not verify…"), clear the
+quarantine flag once and reopen:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Agamemnon.app"
+xattr -dr com.apple.quarantine "/Applications/Northwind Financial.app"
+```
+
+Check the guard is alive at any time:
+
+```bash
+curl http://127.0.0.1:7420/health
+# {"ok":true,"service":"agamemnon-guard","records":50000,"enforcement":true,...}
+```
+
+---
+
+## 2. What it does — try this (2 minutes)
+
+Put the two windows side by side. In **Northwind → Account Records**:
+
+1. **A safe delete.** Tick a few rows → **Delete selected**. Agamemnon allows it instantly;
+   the rows disappear and the action shows in the Agamemnon console (green).
+2. **A delete that needs a human.** Filter to **Flagged**, tick ~a few hundred… actually
+   just use **Delete selected** on a couple hundred rows → Agamemnon **holds it for
+   approval**. Switch to **Agamemnon** → the action sits under *Live decisions* with
+   **Approve / Deny**. Approve it → the rows are deleted; an **Undo** button appears.
+3. **A catastrophe, stopped.** Click **Purge all matching filter** with the filter on
+   **All** → Agamemnon **blocks** it: a dialog shows it would delete 50,000 records
+   (100% of the table, ~417× normal) and lists the rules that fired. Nothing is deleted.
+4. **Undo.** Back in Agamemnon, click **Undo** on the executed delete → the records are
+   restored from the snapshot, recorded as a new audited action.
+5. **Prove the interlink.** Quit Agamemnon → Northwind immediately shows
+   *"Agamemnon offline — records unavailable"*, because Agamemnon holds the data.
+
+---
+
+## 3. How to view it
+
+- **Northwind** — the intern's view: the records table, the delete buttons, and the
+  block/held dialogs.
+- **Agamemnon** — the operator's view: the tiles (protected / blocked / held / executed),
+  the **Live decisions** feed (every delete from the bank, with the fired rules), the
+  **Audit trail**, an **Enforcement** switch, and **Reset data**.
+
+Everything the bank does appears in Agamemnon within a second.
+
+---
+
+## 4. Run Agamemnon on YOUR OWN app (the plugin pattern)
+
+Agamemnon is a guard in front of a datastore. Any app becomes "protected" by sending its
+deletes to the guard's HTTP API instead of running them directly. The guard is at
+`http://127.0.0.1:7420`.
+
+**Propose a delete** (this is the one call your app makes instead of `DELETE`):
+
+```bash
+curl -s -X POST http://127.0.0.1:7420/guard/propose \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"filter":{"status":"flagged"}},"actor":"my-service"}'
+```
+
+The response tells you what happened:
+
+```jsonc
+{ "decision": "block",            // "allow" | "approval" | "block"
+  "status": "blocked",            // executed | awaiting_approval | blocked
+  "measuredRows": 3000,           // Agamemnon's own count, not your claim
+  "firedRules": [ { "name": "...", "severity": "block", "detail": "..." } ] }
+```
+
+**The full guard API:**
+
+| Method + path | What it does |
+|---|---|
+| `GET  /health` | is the guard up; record count; enforcement on/off |
+| `GET  /records?status=&region=&q=&limit=&offset=` | paginated records + counts |
+| `GET  /counts` · `GET /stats` | totals; blocked/held/executed tallies |
+| `POST /guard/propose` `{selector, actor}` | **the guard call** — allow / hold / block |
+| `GET  /pending` | actions awaiting a human decision |
+| `POST /approve` `{actionId, note}` · `POST /deny` `{actionId, note}` | resolve a held action |
+| `POST /undo` `{actionId}` | restore an executed delete from its snapshot |
+| `GET  /feed` · `GET /audit` | recent decisions; the audit trail |
+| `POST /enforcement` `{on:true|false}` · `POST /reset` | toggle policy; reset demo data |
+
+`selector` is one of `{ "ids": [1,2,3] }`, `{ "filter": { "status": "...", "region": "..." } }`,
+or `{ "all": true }`.
+
+**Point it at a real Postgres app.** This demo build keeps its own datastore so it runs with
+zero setup. The full production Agamemnon in this repo (`packages/agamemnon/`) is the same
+policy engine wired to **Convex + Nebius + Postgres**, where the guard holds the Postgres
+credential and executes real `DELETE`s with snapshot/undo. To protect a real app, run that
+backend (`make setup && make demo`) and have your agent send proposals to its
+`/propose` endpoint — identical pattern, real database.
+
+---
+
+## 5. Troubleshooting
+
+- **Northwind says "Agamemnon offline"** → open Agamemnon first; it reconnects within ~2s.
+- **Port 7420 in use** → another copy of the guard is running: quit other Agamemnon
+  instances (`pkill -f Agamemnon.app`) and reopen.
+- **"Apple could not verify…"** → the `xattr -dr com.apple.quarantine …` commands in §1.
+  The apps are ad-hoc signed (no paid Apple Developer ID), which is expected for a demo.
+- **Start over** → in Agamemnon, click **Reset data** (restores all 50,000 records).
