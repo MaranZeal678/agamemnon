@@ -71,7 +71,81 @@ Everything the bank does appears in Agamemnon within a second.
 
 ---
 
-## 4. Run Agamemnon on YOUR OWN app (the plugin pattern)
+## 4. Behind the scenes — the reasoning before it acts
+
+Agamemnon *thinks* before it touches anything: it measures the real reach, classifies it
+(its AI reasoning), applies each rule, and only then executes. Every step is visible.
+
+**See the full reasoning for a rogue "delete everything" (blocked):**
+
+```bash
+curl -s -X POST http://127.0.0.1:7420/guard/propose -H 'content-type: application/json' \
+  -d '{"selector":{"all":true},"actor":"rogue-agent"}' \
+  | jq '{agent_wanted_to_run: .sql, agamemnon_decision: .decision, records_it_would_hit: .measuredRows,
+         classifier_reasoning: (.classifier.class + " — " + .classifier.rationale),
+         policy_reasoning: [.firedRules[] | (.severity + ": " + .name + " — " + .detail)]}'
+```
+
+Real output:
+
+```json
+{
+  "agent_wanted_to_run": "DELETE FROM account_records WHERE 1 = 1",
+  "agamemnon_decision": "block",
+  "records_it_would_hit": 50000,
+  "classifier_reasoning": "catastrophic — matches 50,000 of 50,000 records (100.0% of account_records)",
+  "policy_reasoning": [
+    "block: destructive-over-hard-cap — 50,000 records exceeds the 2,500-record destructive hard cap",
+    "block: exceeds-20x-median — 50,000 is 416.7× the operator's median of 120 (limit 20×)",
+    "block: destructive-budget-exhausted — +50,000 exceeds the 2,500 per-session budget",
+    "approval: destructive-over-100 — 50,000 destructive records (>100) requires approval",
+    "approval: blast-radius-high — classifier blast radius 1.00 ≥ 0.9"
+  ]
+}
+```
+
+That's the *classifier's* reasoning (`catastrophic — 100% of the table`) and the *policy's*
+reasoning (every rule, and exactly why it fired) — before a single row is touched.
+
+**Watch the "think, then do" sequence for a legitimate delete** — measure → classify →
+decide → snapshot → mint a one-time credential → execute → revoke it:
+
+```bash
+curl -s -X POST http://127.0.0.1:7420/guard/propose -H 'content-type: application/json' \
+  -d '{"selector":{"ids":[101,102,103]},"actor":"cleanup-agent"}' | jq '{decision, status, records: .measuredRows}'
+
+curl -s "http://127.0.0.1:7420/audit?limit=8" | jq -r '.audit | reverse | .[] | "[\(.kind)] \(.detail)"'
+```
+
+Real trail — the reasoning happens *before* the delete, and a backup exists before anything is removed:
+
+```text
+[propose]            cleanup-agent proposed delete of 3 selected record(s)
+[classify]           classifier → benign, blast radius 0.00
+[decision]           decision: ALLOW — fired [none]
+[snapshot]           snapshot stored — 3 records serialised before delete
+[credential-mint]    minted a single-action credential
+[execute]            3 records deleted
+[credential-revoke]  revoked the single-action credential
+```
+
+The order is the whole point: **classify and decide come before snapshot, and snapshot comes
+before execute.** Nothing is deleted until the reasoning has cleared it and a backup exists.
+
+**The agent's own reasoning (a real LLM).** In this desktop build, the agent's intent is the
+SQL it asked to run. To watch an agent *think out loud with a live model*, run the full
+project's agent from the repo root — it narrates via Nebius `Llama-3.3-70B`:
+
+```bash
+make act2
+```
+
+It prints lines like *"[agent] the status_code column is gone — I'll find orphans structurally
+with a LEFT JOIN…"* just before proposing the delete that Agamemnon then blocks.
+
+---
+
+## 5. Run Agamemnon on YOUR OWN app (the plugin pattern)
 
 Agamemnon is a guard in front of a datastore. Any app becomes "protected" by sending its
 deletes to the guard's HTTP API instead of running them directly. The guard is at
@@ -120,7 +194,7 @@ backend (`make setup && make demo`) and have your agent send proposals to its
 
 ---
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 - **Northwind says "Agamemnon offline"** → open Agamemnon first; it reconnects within ~2s.
 - **Port 7420 in use** → another copy of the guard is running: quit other Agamemnon
