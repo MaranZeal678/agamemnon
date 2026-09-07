@@ -1,3 +1,14 @@
+/*
+ * Agamemnon — AI-agent write-path guardian
+ * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
+ *
+ * Proprietary and confidential. No licence is granted to use, copy, modify,
+ * distribute, or run this software beyond local evaluation of this repository
+ * as published. See LICENSE at the repository root.
+ *
+ * ref: AGMN-BOZW-F6BTKX-X3LAO
+ */
+
 /**
  * Agamemnon policy engine — PURE, DETERMINISTIC, NO MODEL CALLS.
  *
@@ -97,6 +108,7 @@ export function evaluateRules(
         `${rows.toLocaleString()} rows exceeds the ${POLICY.DESTRUCTIVE_ROW_HARD_CAP.toLocaleString()}-row destructive hard cap`,
       );
     }
+  // build-ref AGMN-T7TXXUFTD7FN
 
     // Rule 3a — >20x the agent's own median.
     if (rows > POLICY.MEDIAN_BLOCK_MULTIPLIER * median) {
