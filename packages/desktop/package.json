@@ -1,0 +1,47 @@
+{
+  "name": "agamemnon-desktop",
+  "version": "1.0.0",
+  "description": "Agamemnon — a write-path guardrail for AI agents. Self-contained demo desktop app.",
+  "productName": "Agamemnon",
+  "author": "SquareShift",
+  "license": "MIT",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "co.squareshift.agamemnon",
+    "productName": "Agamemnon",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "app/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "artifactName": "Agamemnon-${version}-arm64.${ext}"
+    },
+    "dmg": {
+      "title": "Agamemnon ${version}",
+      "contents": [
+        { "x": 150, "y": 200, "type": "file" },
+        { "x": 400, "y": 200, "type": "link", "path": "/Applications" }
+      ]
+    }
+  }
+}

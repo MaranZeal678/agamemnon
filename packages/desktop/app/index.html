@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.studio.nebius.com" />
+  <title>Agamemnon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="side">
+      <div class="brand">
+        <svg class="sigil" viewBox="0 0 40 40" fill="none"><path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="1.6"/><path d="M20 3 L20 37 M6 11 L34 11 M6 30 L34 30" stroke="#6b5a26" stroke-width="1"/><circle cx="20" cy="20.5" r="4.2" fill="#e8b93e"/></svg>
+        <div><div class="wm">AGA<b>MEMNON</b></div><div class="wm-sub">write-path guardian</div></div>
+      </div>
+      <nav class="tabs">
+        <button class="tab on" data-tab="overview"><span class="ic">◆</span> Overview</button>
+        <div class="tab-group">The customer</div>
+        <button class="tab" data-tab="bank"><span class="ic">▚</span> NorthBridge Bank</button>
+        <button class="tab" data-tab="db"><span class="ic">▤</span> Database</button>
+        <button class="tab" data-tab="rogue"><span class="ic">⚠</span> Rogue Agent</button>
+        <div class="tab-group">The product</div>
+        <button class="tab" data-tab="aga"><span class="ic">⛨</span> Agamemnon</button>
+        <button class="tab" data-tab="stats"><span class="ic">▨</span> Statistics</button>
+      </nav>
+      <div class="side-foot">
+        <div class="state-pill"><span class="dot" id="dotState"></span><span id="stateText">240,000 records</span></div>
+        <button class="mini" id="resetAll">Reset demo</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main" id="main">
+
+      <!-- OVERVIEW -->
+      <section class="panel on" data-panel="overview">
+        <div class="pnl-inner narrow">
+          <div class="eyebrow">The scenario</div>
+          <h1 class="h1">An AI agent was told to clean up a bank's database.<br>It tried to delete <span class="gold">everything.</span></h1>
+          <p class="lead">A software engineer at <b>NorthBridge Bank</b> hands an AI agent a routine job: remove flagged transactions from the production Postgres database. A subtle bug makes the agent's query match <b>every</b> record. Without a guardrail, 240,000 live transactions vanish and no monitor notices. <b>Agamemnon</b> sits on the write path and stops it.</p>
+          <div class="steps4">
+            <div class="s4"><div class="s4n">01</div><h3>Record atomically</h3><p>Every write and its audit entry are saved together. No action without a trail.</p></div>
+            <div class="s4"><div class="s4n">02</div><h3>Measure blast radius</h3><p>Agamemnon counts the real rows with its own access — not the number the agent claims.</p></div>
+            <div class="s4"><div class="s4n">03</div><h3>Decide by policy</h3><p>Deterministic rules allow, hold for approval, or block. The AI can only make it stricter.</p></div>
+            <div class="s4"><div class="s4n">04</div><h3>Keep it reversible</h3><p>Rows are snapshotted before deletion. Undo restores the exact rows in seconds.</p></div>
+          </div>
+          <div class="cta-row">
+            <button class="btn gold" data-goto="rogue">See the agent go rogue &rarr;</button>
+            <button class="btn" data-goto="aga">Jump to Agamemnon</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- BANK -->
+      <section class="panel" data-panel="bank">
+        <div class="pnl-inner">
+          <div class="nb-app">
+            <div class="nb-top">
+              <div class="nb-logo"><span class="nb-mark">N</span> NORTHBRIDGE BANK <small>Operations Console</small></div>
+              <div class="nb-user">ops.engineer@northbridge &middot; Prod</div>
+            </div>
+            <div class="nb-body">
+              <div class="nb-counter">
+                <div class="nb-big" id="bankCount">240,000</div>
+                <div class="nb-cap">active transactions<br><b>live</b> from the production database</div>
+              </div>
+              <div class="nb-mons">
+                <div class="nbm"><span class="led"></span><div class="k">Query latency</div><div class="v" id="mLat">38<i>ms</i></div></div>
+                <div class="nbm"><span class="led"></span><div class="k">Error rate</div><div class="v">0.00<i>%</i></div></div>
+                <div class="nbm"><span class="led"></span><div class="k">DB load</div><div class="v">3<i>active</i></div></div>
+                <div class="nbm"><span class="led"></span><div class="k">Replication</div><div class="v">OK<i>&nbsp;</i></div></div>
+              </div>
+              <div class="nb-tablewrap">
+                <table class="nb-table">
+                  <thead><tr><th>Ref</th><th>Account</th><th>Holder</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+                  <tbody id="bankRows"></tbody>
+                </table>
+              </div>
+              <div class="nb-note" id="bankNote"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DATABASE -->
+      <section class="panel" data-panel="db">
+        <div class="pnl-inner">
+          <div class="db-head">
+            <div><div class="eyebrow">Production database</div><h2 class="h2">transactions</h2></div>
+            <div class="db-stats" id="dbStats"></div>
+          </div>
+          <div class="db-bar">
+            <input id="dbSearch" class="db-input" placeholder="filter by ref, account, or holder…" />
+            <div class="seg" id="dbFilter">
+              <button class="seg-b on" data-f="all">All</button>
+              <button class="seg-b" data-f="active">Active</button>
+              <button class="seg-b" data-f="flagged">Flagged</button>
+            </div>
+          </div>
+          <div class="db-tablewrap">
+            <table class="db-table">
+              <thead><tr><th>ID</th><th>Ref</th><th>Account</th><th>Holder</th><th>Type</th><th>Amount</th><th>Posted</th><th>Status</th></tr></thead>
+              <tbody id="dbRows"></tbody>
+            </table>
+          </div>
+          <div class="db-pager"><button class="mini" id="dbPrev">‹ Prev</button><span id="dbPage" class="db-pageinfo"></span><button class="mini" id="dbNext">Next ›</button></div>
+        </div>
+      </section>
+
+      <!-- ROGUE -->
+      <section class="panel" data-panel="rogue">
+        <div class="pnl-inner">
+          <div class="split2">
+            <div>
+              <div class="eyebrow red">Agamemnon OFF</div>
+              <h2 class="h2">The agent holds the password.</h2>
+              <p class="lead sm">Run the cleanup. The agent reasons, hits its bug, and deletes directly against production. Watch the bank's live counter drain — and watch the monitors stay green.</p>
+              <div class="cmd-palette">
+                <div class="cp-label">Commands</div>
+                <button class="cmd-b" data-cmd="agent rogue">agent rogue</button>
+                <button class="cmd-b" data-cmd="db count">db count</button>
+                <button class="cmd-b" data-cmd="reset">reset</button>
+              </div>
+              <div class="mini-board">
+                <div class="mb-big" id="rogueCount">240,000</div>
+                <div class="mb-cap">active transactions · <span class="grn">monitors green</span></div>
+              </div>
+            </div>
+            <div class="term-wrap"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span> agent@northbridge — bash</div><div class="term" id="rogueTerm"></div><div class="term-input"><span class="ti-p">$</span><input id="rogueInput" placeholder="type a command, or click one" autocomplete="off"/></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AGAMEMNON -->
+      <section class="panel" data-panel="aga">
+        <div class="pnl-inner">
+          <div class="aga-grid">
+            <div class="aga-left">
+              <div class="eyebrow">Agamemnon ON &middot; the agent has no password</div>
+              <h2 class="h2">Every write must ask first.</h2>
+              <div class="proc" id="procList">
+                <div class="proc-i" data-p="1"><span class="pn">01</span><div><b>Record</b><small>action + audit, atomic</small></div><span class="pk" id="pk1"></span></div>
+                <div class="proc-i" data-p="2"><span class="pn">02</span><div><b>Measure</b><small>true blast radius</small></div><span class="pk" id="pk2"></span></div>
+                <div class="proc-i" data-p="3"><span class="pn">03</span><div><b>Decide</b><small>deterministic policy</small></div><span class="pk" id="pk3"></span></div>
+                <div class="proc-i" data-p="4"><span class="pn">04</span><div><b>Reverse</b><small>snapshot + undo</small></div><span class="pk" id="pk4"></span></div>
+              </div>
+              <div class="cmd-palette">
+                <div class="cp-label">Commands</div>
+                <button class="cmd-b" data-cmd="agent protected">agent protected</button>
+                <button class="cmd-b" data-cmd="agent cleanup">agent cleanup</button>
+                <button class="cmd-b" data-cmd="approve">approve</button>
+                <button class="cmd-b" data-cmd="undo">undo</button>
+                <button class="cmd-b" data-cmd="stats">stats</button>
+              </div>
+            </div>
+            <div class="aga-mid">
+              <div class="term-wrap">
+                <div class="term-bar"><svg class="csig" viewBox="0 0 40 40" fill="none"><path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="2.4"/><circle cx="20" cy="20.5" r="4.4" fill="#e8b93e"/></svg> agamemnon — control terminal <span class="term-chip" id="accessChip">locked</span></div>
+                <div class="term" id="agaTerm"></div>
+                <div class="term-lock" id="agaLock"><div>Agamemnon needs permission to act on the database.</div><button class="btn gold" id="grantBtn">Grant terminal access</button></div>
+                <div class="term-input" id="agaInputRow" hidden><span class="ti-p">$</span><input id="agaInput" placeholder="type a command, or click one" autocomplete="off"/></div>
+              </div>
+            </div>
+            <div class="aga-right">
+              <div class="con-title">Console — action feed</div>
+              <div class="feed" id="agaFeed"></div>
+              <div id="agaDecision"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STATS -->
+      <section class="panel" data-panel="stats">
+        <div class="pnl-inner narrow">
+          <div class="eyebrow">The measurement</div>
+          <h2 class="h2">Small model. Frontier results.</h2>
+          <div class="tiles">
+            <div class="tile grn"><div class="big">100%</div><div class="lab">dangerous deletes caught</div></div>
+            <div class="tile"><div class="big">$0.00004</div><div class="lab">per safety check</div></div>
+            <div class="tile"><div class="big">1.3s</div><div class="lab">median latency</div></div>
+            <div class="tile"><div class="big" id="ratioTile">120×</div><div class="lab">lie caught in this demo</div></div>
+          </div>
+          <div class="eval-wrap">
+            <table class="eval">
+              <thead><tr><th>Reviewer</th><th>Catches danger</th><th>Precision</th><th>Cost/check</th><th>Speed</th></tr></thead>
+              <tbody>
+                <tr class="tuned"><td class="lab">Agamemnon-tuned <span class="s">Qwen3-30B · Nebius</span></td><td class="good">100.0%</td><td>94.1%</td><td>$0.00004</td><td>1.3s</td></tr>
+                <tr><td class="lab">Stock, untuned <span class="s">gemma-3-27b</span></td><td class="warn">93.8%</td><td>100.0%</td><td>$0.00005</td><td>2.9s</td></tr>
+                <tr><td class="lab">Frontier <span class="s">DeepSeek-V4-Pro</span></td><td class="good">100.0%</td><td>100.0%</td><td>$0.00022</td><td>2.2s</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="audit-head">Audit log <span class="s" id="auditCount"></span></div>
+          <div class="audit" id="auditLog"></div>
+          <div class="builton">Built on <b>Convex</b> &amp; <b>Nebius</b> · the pure policy engine shown here is the production one.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
