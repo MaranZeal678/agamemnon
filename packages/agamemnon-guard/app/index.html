@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://127.0.0.1:7420 http://localhost:7420" />
+  <title>Agamemnon Guard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="sigil" viewBox="0 0 40 40" fill="none"><path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="1.6"/><path d="M20 3 L20 37 M6 11 L34 11 M6 30 L34 30" stroke="#6b5a26" stroke-width="1"/><circle cx="20" cy="20.5" r="4.2" fill="#e8b93e"/></svg>
+      <div><div class="wm">AGA<b>MEMNON</b></div><div class="wm-sub">write-path guard</div></div>
+    </div>
+    <div class="status">
+      <div class="guard-pill" id="guardPill"><span class="d"></span><span id="guardText">connecting…</span></div>
+      <label class="switch"><span>Enforcement</span><input type="checkbox" id="enfToggle" checked /><span class="track"><span class="knob"></span></span></label>
+      <button class="mini" id="resetBtn">Reset data</button>
+    </div>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="big" id="tProtected">—</div><div class="lab">records protected</div></div>
+    <div class="tile red"><div class="big" id="tBlocked">0</div><div class="lab">blocked</div></div>
+    <div class="tile amber"><div class="big" id="tHeld">0</div><div class="lab">held for approval</div></div>
+    <div class="tile grn"><div class="big" id="tExecuted">0</div><div class="lab">approved &amp; executed</div></div>
+  </div>
+
+  <main class="body">
+    <section class="col-feed">
+      <div class="col-title">Live decisions <span class="hint">the bank app's every delete arrives here</span></div>
+      <div id="pending"></div>
+      <div id="feed"></div>
+      <div class="empty" id="feedEmpty">Waiting for the bank app to submit a deletion…<br><span>Open <b>Northwind Financial</b>, go to Records Management, and delete something.</span></div>
+    </section>
+    <section class="col-audit">
+      <div class="col-title">Audit trail <span class="hint" id="auditCount"></span></div>
+      <div class="audit" id="audit"></div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
