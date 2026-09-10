@@ -12,7 +12,32 @@ Two separate macOS apps that are **interlinked and genuinely work** (no simulati
 
 ---
 
-## 1. Run it (type these)
+## The Halcyon app — the all-in-one live demo (recommended)
+
+`Halcyon` is a single app that tells the whole story **and has the embedded terminal built
+in** — no second app, no setup.
+
+1. Open it: `open "/Applications/Halcyon.app"` (first launch, if macOS blocks it:
+   `xattr -dr com.apple.quarantine "/Applications/Halcyon.app"`).
+2. **Billing tab** — Halcyon is a billing platform with 300,000 invoices and a housekeeping
+   agent called **Sweep**. Click **Run cleanup after schema change**: Sweep hits a renamed
+   column, improvises a buggy query, and — with no guard installed — deletes every invoice
+   while the monitors stay green. That's the catastrophe.
+3. Click **Install Agamemnon plugin** (top-right). The **Terminal** and **Agamemnon** tabs
+   unlock and the badge turns gold.
+4. **Terminal tab** — a real local shell embedded in the app, with a command palette. Click
+   the buttons (or type your own commands) to hit the guard and see the reasoning: the
+   classifier's verdict, each rule's "why", and the think-then-execute audit trail (§4).
+5. **Reset data**, then run Sweep again → now Agamemnon **blocks** it, and the **Agamemnon
+   tab** shows the decision, the fired rules, and approve / undo — live.
+
+The embedded terminal is your actual shell (`cd`, variables, and env persist across
+commands), so every command in this document works there verbatim. The guard runs inside
+Halcyon on `http://127.0.0.1:7420`.
+
+---
+
+## 1. Run the two separate apps (type these)
 
 Both apps are installed in `/Applications`. **Open Agamemnon first** (it holds the data),
 then Northwind:
