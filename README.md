@@ -165,29 +165,17 @@ Two products, two deliberately different looks, so nobody on stage confuses them
 
 ---
 
-## How it uses Convex
+## Technologies used
 
-Convex isn't just a database here — it runs the **whole backend**.
-
-| Convex feature | What Agamemnon does with it |
-|---|---|
-| Transactions | Saves each request and its audit record in one step, so a change with no paper trail can't exist. |
-| Durable workflow | Runs the review (measure, check, wait for a human, back up, delete) reliably, even across restarts. While one request waits for approval, other work keeps flowing. |
-| Live queries | The console updates itself the instant anything changes — no refresh, no polling code. |
-| File storage | Holds the backup of deleted rows so undo can restore them. |
-| Environment variables | The database password lives only here — never in the agent. |
-| Runs fully on-device | The whole demo works offline. |
-
-## How it uses Nebius
-
-Every AI model runs on **Nebius Token Factory**:
-
-| Where | Nebius model | Why |
-|---|---|---|
-| Reviewing each change | `Qwen3-30B-A3B` (small, tuned) | fast, cheap, strict JSON, with a hard time limit and a built-in fallback |
-| The agent thinking out loud | `Llama-3.3-70B` | so the reasoning on stage is a real model, not a script |
-| Building the test set | `Llama-3.3-70B` | generated most of the 200 labelled examples |
-| The "stock" and "top-tier" comparisons | `gemma-3-27b` and `DeepSeek-V4-Pro` | the baseline and the ceiling in the scoreboard |
+- **Nebius** — all the models. `Qwen3-30B` is the tuned classifier (strict JSON, 800 ms cap,
+  heuristic fallback); `Llama-3.3-70B` narrates the agent's reasoning; `DeepSeek-V4` and
+  `gemma-3-27b` are the eval baselines.
+- **Convex** — the backend: a durable workflow (measure → decide → wait → snapshot → delete),
+  live queries for the console, file storage for undo, and the env var that holds the DB
+  password. Runs locally under Node 24 so it works offline.
+- **PostgreSQL** — the real database.
+- **Electron** — packages the demo into a Mac app with an embedded terminal.
+- **TypeScript** — the pure, tested rules engine.
 
 The AI reviewer is **optional by design** — it can only make a decision stricter, and the
 plain rules work without it. That's why a dead venue network can't break the demo.
