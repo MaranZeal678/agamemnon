@@ -222,9 +222,19 @@ dispatch board is at `http://localhost:5173/#/dispatch`.
 
 ---
 
-## Desktop apps (macOS) — the interlinked demo
+## Desktop apps (macOS)
 
-Two standalone apps you can install and run with **no backend setup**:
+**Halcyon** (recommended) — one app that tells the whole story: a billing platform whose
+"Sweep" agent deletes 300,000 invoices after a schema change, an **Install Agamemnon
+plugin** button that starts the guard, and an **embedded local terminal** to run the guard
+commands live and watch the rogue get blocked. Full walkthrough in
+**[docs/RUN-AGAMEMNON.md](docs/RUN-AGAMEMNON.md)**.
+
+```bash
+open "/Applications/Halcyon.app"
+```
+
+Or the two interlinked apps you can install and run with **no backend setup**:
 
 - **Northwind Financial** — a bank back-office where an intern manages account records.
 - **Agamemnon** — the guardrail. It owns the records and runs a local guard server on

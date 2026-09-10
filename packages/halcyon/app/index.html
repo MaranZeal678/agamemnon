@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://127.0.0.1:* http://localhost:*" />
+  <title>Halcyon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><span class="dot"></span>halcyon</div>
+      <div class="env">billing · production</div>
+    </div>
+    <nav class="tabs">
+      <button class="tab on" data-view="billing">Billing</button>
+      <button class="tab locked" data-view="terminal" id="tabTerminal" disabled>Terminal <span class="lk">locked</span></button>
+      <button class="tab locked" data-view="agamemnon" id="tabAga" disabled>Agamemnon <span class="lk">locked</span></button>
+    </nav>
+    <div class="top-right">
+      <div class="prot" id="protBadge"><span class="pd"></span><span id="protText">Unprotected</span></div>
+      <button class="btn install" id="installBtn">Install Agamemnon plugin</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- BILLING -->
+    <section class="view on" data-view="billing">
+      <div class="vin">
+        <div class="banner" id="stateBanner">
+          <b>No write-path guard.</b> The Sweep agent has a direct database credential — anything it runs, runs.
+        </div>
+        <div class="grid-top">
+          <div class="counter-card">
+            <div class="cc-l">Active invoices</div>
+            <div class="cc-v" id="invCount">—</div>
+            <div class="cc-s">live from the billing database</div>
+          </div>
+          <div class="mons">
+            <div class="mon"><span class="led"></span><div class="mk">Query latency</div><div class="mv">31<i>ms</i></div></div>
+            <div class="mon"><span class="led"></span><div class="mk">Error rate</div><div class="mv">0.00<i>%</i></div></div>
+            <div class="mon"><span class="led"></span><div class="mk">Replication</div><div class="mv">OK</div></div>
+            <div class="mon"><span class="led"></span><div class="mk">API health</div><div class="mv">200</div></div>
+          </div>
+        </div>
+
+        <div class="sweep">
+          <div class="sweep-h"><div class="sweep-ic">S</div><div><div class="sweep-t">Sweep <span class="sweep-b" id="sweepBadge">housekeeping agent · healthy</span></div><div class="sweep-d">Nightly job: delete abandoned &amp; void invoices. Normally ~11,000 rows.</div></div></div>
+          <div class="sweep-log" id="sweepLog"><div class="sl-empty">Run a job to see what the agent does.</div></div>
+          <div class="sweep-actions">
+            <button class="btn ghost" id="runNightly">Run nightly cleanup</button>
+            <button class="btn danger" id="runRogue">Run cleanup after schema change</button>
+            <button class="mini" id="resetBtn">Reset data</button>
+          </div>
+        </div>
+
+        <div class="tablewrap">
+          <div class="tbl-h">Recent invoices <span class="q" id="invMeta"></span></div>
+          <table class="tbl"><thead><tr><th>Ref</th><th>Customer</th><th>Plan</th><th>Region</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody id="invRows"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TERMINAL -->
+    <section class="view" data-view="terminal">
+      <div class="vin term-vin">
+        <div class="term-side">
+          <div class="ts-h">Try the plugin</div>
+          <div class="ts-sub">Click a command to run it in the terminal, or type your own. Full docs in <code>docs/RUN-AGAMEMNON.md</code>.</div>
+          <div class="palette" id="palette"></div>
+          <div class="ts-note">The terminal is your real local shell — <code>cd</code>, variables, and env persist across commands.</div>
+        </div>
+        <div class="term-wrap">
+          <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span> terminal — <span id="termGuard">guard</span><button class="mini clr" id="clrTerm">clear</button></div>
+          <div class="term" id="term"></div>
+          <div class="term-in"><span class="tp">$</span><input id="termInput" placeholder="type a command…" autocomplete="off" spellcheck="false"/></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AGAMEMNON -->
+    <section class="view" data-view="agamemnon">
+      <div class="vin">
+        <div class="tiles">
+          <div class="tile"><div class="big" id="tProtected">—</div><div class="lab">invoices protected</div></div>
+          <div class="tile red"><div class="big" id="tBlocked">0</div><div class="lab">blocked</div></div>
+          <div class="tile amber"><div class="big" id="tHeld">0</div><div class="lab">held for approval</div></div>
+          <div class="tile grn"><div class="big" id="tExecuted">0</div><div class="lab">approved &amp; executed</div></div>
+        </div>
+        <div class="aga-body">
+          <div class="aga-feedcol"><div class="col-h">Live decisions</div><div id="pending"></div><div id="feed"></div><div class="empty" id="feedEmpty">No decisions yet — run Sweep, or use the Terminal.</div></div>
+          <div class="aga-auditcol"><div class="col-h">Audit trail</div><div class="audit" id="audit"></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toasts" class="toasts"></div>
+  <script src="app.js"></script>
+</body>
+</html>
