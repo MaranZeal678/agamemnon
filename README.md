@@ -165,17 +165,19 @@ Two products, two deliberately different looks, so nobody on stage confuses them
 
 ---
 
-## Technologies used
+## Tech stack
 
-- **Nebius** — all the models. `Qwen3-30B` is the tuned classifier (strict JSON, 800 ms cap,
-  heuristic fallback); `Llama-3.3-70B` narrates the agent's reasoning; `DeepSeek-V4` and
-  `gemma-3-27b` are the eval baselines.
-- **Convex** — the backend: a durable workflow (measure → decide → wait → snapshot → delete),
-  live queries for the console, file storage for undo, and the env var that holds the DB
-  password. Runs locally under Node 24 so it works offline.
-- **PostgreSQL** — the real database.
-- **Electron** — packages the demo into a Mac app with an embedded terminal.
-- **TypeScript** — the pure, tested rules engine.
+| Layer | What we use | What it does here |
+|---|---|---|
+| **Policy engine** | TypeScript, zero dependencies | Decides allow / needs-approval / block. Pure functions, 14/14 tests, no AI in the decision path. |
+| **Backend + durable workflow** | Convex (local deployment) | Runs the request lifecycle — measure → classify → park → snapshot → delete → verify — so a crash mid-delete can't lose the audit record. Also live queries for the console, blob storage for undo snapshots, and the env var holding the DB password the agent never sees. |
+| **Database** | PostgreSQL 14 | The real production database being protected. 412,000 seeded rows; every delete in the demo is a real delete. |
+| **Risk classifier** | `Qwen3-30B`, tuned — served on Nebius Token Factory | Second opinion on each request. Strict JSON out, 800 ms cap, heuristic fallback. Can only make a decision *stricter*, never looser. |
+| **Supporting models** | `Llama-3.3-70B`, `DeepSeek-V4`, `gemma-3-27b` | Narrates the agent's reasoning; the last two are eval baselines. |
+| **Console + dispatch board** | React + Vite | The operator console (`:5174`) and the customer's live board (`:5173`). |
+| **Desktop apps** | Electron | Packages the whole demo — guard server, datastore, embedded terminal — into macOS apps that run with no backend setup and no network. |
+| **Runtime** | Node 24 | Pinned; the local backend rejects newer versions. |
+| **Built with** | Claude Code | Paired on most of this repo: the workflow wiring, the policy rules, the eval harness, and both desktop apps. |
 
 The AI reviewer is **optional by design** — it can only make a decision stricter, and the
 plain rules work without it. That's why a dead venue network can't break the demo.
