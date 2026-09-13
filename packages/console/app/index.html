@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://avatars.githubusercontent.com data:; connect-src http://127.0.0.1:* http://localhost:* https://api.github.com" />
+  <title>Agamemnon Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <!-- Sidebar -->
+    <aside class="side">
+      <div class="brand">
+        <svg class="sigil" viewBox="0 0 40 40" fill="none"><path d="M20 3 L34 11 L34 30 L20 37 L6 30 L6 11 Z" stroke="#e8b93e" stroke-width="1.6"/><path d="M20 3 L20 37 M6 11 L34 11 M6 30 L34 30" stroke="#6b5a26" stroke-width="1"/><circle cx="20" cy="20.5" r="4.2" fill="#e8b93e"/></svg>
+        <div><div class="wm">AGA<b>MEMNON</b></div><div class="wm-sub">Console</div></div>
+      </div>
+      <nav class="nav">
+        <div class="nav-g">Console</div>
+        <button class="nav-i on" data-view="overview"><span class="ic">◧</span>Overview</button>
+        <button class="nav-i" data-view="decisions"><span class="ic">◈</span>Live decisions</button>
+        <button class="nav-i" data-view="database"><span class="ic">▤</span>Database</button>
+        <button class="nav-i" data-view="terminal"><span class="ic">▸</span>Terminal</button>
+        <div class="nav-g">Settings</div>
+        <button class="nav-i" data-view="integrations"><span class="ic">◇</span>Integrations</button>
+        <button class="nav-i" data-view="policy"><span class="ic">▦</span>Policy</button>
+        <button class="nav-i" data-view="audit"><span class="ic">≣</span>Audit log</button>
+        <button class="nav-i" data-view="account"><span class="ic">◔</span>Account</button>
+      </nav>
+      <div class="side-foot">
+        <div class="guardpill" id="guardPill"><span class="d"></span><span id="guardText">connecting…</span></div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs"><span class="c1">Agamemnon</span><span class="sep">/</span><span id="crumb">Overview</span></div>
+        <div class="tb-right">
+          <button class="chip-gh" id="ghChip"><span id="ghChipInner">Not connected</span></button>
+        </div>
+      </header>
+
+      <!-- OVERVIEW -->
+      <section class="view on" data-view="overview">
+        <div class="vin">
+          <h1 class="h1">Overview</h1>
+          <p class="sub">The write-path guard, at a glance.</p>
+          <div class="tiles">
+            <div class="tile"><div class="t-l">Rows protected</div><div class="t-v" id="oProtected">—</div></div>
+            <div class="tile red"><div class="t-l">Blocked</div><div class="t-v" id="oBlocked">0</div></div>
+            <div class="tile amber"><div class="t-l">Held for approval</div><div class="t-v" id="oHeld">0</div></div>
+            <div class="tile grn"><div class="t-l">Approved &amp; executed</div><div class="t-v" id="oExecuted">0</div></div>
+          </div>
+          <div class="panel">
+            <div class="p-h">Recent decisions</div>
+            <div class="p-b" id="oFeed"><div class="muted">No decisions yet.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LIVE DECISIONS -->
+      <section class="view" data-view="decisions">
+        <div class="vin">
+          <h1 class="h1">Live decisions</h1>
+          <p class="sub">Every write proposal, measured and judged in real time.</p>
+          <div id="pending"></div>
+          <div id="feed"></div>
+          <div class="empty" id="feedEmpty">No decisions yet — trigger one from the Terminal.</div>
+        </div>
+      </section>
+
+      <!-- DATABASE -->
+      <section class="view" data-view="database">
+        <div class="vin">
+          <h1 class="h1">Database</h1>
+          <p class="sub">The protected table. Agamemnon holds the credential; nothing here deletes without a proposal.</p>
+          <div class="db-stats" id="dbStats"></div>
+          <div class="panel">
+            <div class="p-h">Records</div>
+            <div class="tblwrap"><table class="tbl"><thead id="dbHead"></thead><tbody id="dbRows"></tbody></table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TERMINAL -->
+      <section class="view" data-view="terminal">
+        <div class="vin">
+          <h1 class="h1">Terminal</h1>
+          <p class="sub">Run commands against the guard. Type <code>help</code> to start.<span id="termMode" class="tmode"></span></p>
+          <div class="term-wrap">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span> agamemnon — console <button class="mini clr" id="clrTerm">clear</button></div>
+            <div class="term" id="term"></div>
+            <div class="term-in"><span class="tp">$</span><input id="termInput" placeholder="help" autocomplete="off" spellcheck="false"/></div>
+          </div>
+          <div class="chips-row" id="termChips"></div>
+        </div>
+      </section>
+
+      <!-- INTEGRATIONS -->
+      <section class="view" data-view="integrations">
+        <div class="vin">
+          <h1 class="h1">Integrations</h1>
+          <p class="sub">Connect the systems Agamemnon should guard.</p>
+          <div class="panel">
+            <div class="int-row">
+              <div class="int-left">
+                <svg class="gh-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="8" r="3"/><path d="M6 9v6"/><path d="M6 12h3a6 6 0 0 0 6-6"/></svg>
+                <div><div class="int-name">GitHub</div><div class="int-desc" id="ghDesc">Link a repository so Agamemnon can guard its write path.</div></div>
+              </div>
+              <div class="int-right" id="ghAction"><button class="btn primary" id="ghConnect">Connect</button></div>
+            </div>
+            <div class="gh-connected" id="ghConnected" hidden>
+              <div class="gh-user"><img id="ghAvatar" class="gh-avatar" alt=""/><div><div class="gh-login" id="ghLogin"></div><div class="gh-meta" id="ghMeta"></div></div><button class="mini" id="ghDisconnect" style="margin-left:auto">Disconnect</button></div>
+              <div class="gh-repos-h">Repositories <span class="muted" id="ghRepoCount"></span></div>
+              <div class="gh-repos" id="ghRepos"></div>
+            </div>
+          </div>
+          <div class="int-note">Other targets connect the same way — Agamemnon sits on the write path and every destructive change becomes a reviewed proposal.</div>
+        </div>
+      </section>
+
+      <!-- POLICY -->
+      <section class="view" data-view="policy">
+        <div class="vin">
+          <h1 class="h1">Policy</h1>
+          <p class="sub">Deterministic rules. The model can only make a decision stricter — never softer.</p>
+          <div class="panel">
+            <div class="setting"><div><div class="s-name">Enforcement</div><div class="s-desc">When on, every destructive write is measured and judged before it runs.</div></div>
+              <label class="switch"><input type="checkbox" id="enfToggle" checked /><span class="track"><span class="knob"></span></span></label></div>
+          </div>
+          <div class="panel">
+            <div class="p-h">Rules</div>
+            <div class="p-b" id="rulesList"></div>
+          </div>
+          <div class="panel">
+            <div class="setting"><div><div class="s-name">Reset demo data</div><div class="s-desc">Restore the protected table to its seeded state.</div></div>
+              <button class="btn" id="resetBtn">Reset data</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUDIT -->
+      <section class="view" data-view="audit">
+        <div class="vin">
+          <h1 class="h1">Audit log</h1>
+          <p class="sub">Append-only. Every action, in order.</p>
+          <div class="audit" id="audit"></div>
+        </div>
+      </section>
+
+      <!-- ACCOUNT -->
+      <section class="view" data-view="account">
+        <div class="vin">
+          <h1 class="h1">Account</h1>
+          <p class="sub">Who's signed in to this console.</p>
+          <div class="panel">
+            <div class="p-h">Identity</div>
+            <div class="p-b" id="accountBody"><div class="muted">Connect GitHub in Integrations to sign in with your GitHub identity.</div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- github connect modal -->
+  <div class="modal-bg" id="ghModal" hidden><div class="modal">
+    <div class="m-h">Connect GitHub</div>
+    <div class="m-b">
+      <p>Paste a GitHub <b>fine-grained personal access token</b> with <b>read-only</b> access to the repositories you want to link.</p>
+      <input id="ghToken" class="m-in" type="password" placeholder="github_pat_… or ghp_…" autocomplete="off"/>
+      <div class="m-err" id="ghErr" hidden></div>
+      <p class="m-note">Your token is stored only in this browser and is sent only to <b>github.com</b>. Create one at github.com → Settings → Developer settings → Fine-grained tokens.</p>
+    </div>
+    <div class="m-f"><button class="btn" id="ghCancel">Cancel</button><button class="btn primary" id="ghSubmit">Connect</button></div>
+  </div></div>
+
+  <div id="toasts" class="toasts"></div>
+  <script src="app.js"></script>
+</body>
+</html>
