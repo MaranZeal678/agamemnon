@@ -2,8 +2,9 @@
   "name": "agamemnon-monorepo",
   "private": true,
   "version": "0.1.0",
-  "description": "Agamemnon — the watcher at the gate. Monorepo: the product + the fictional customer.",
+  "description": "Agamemnon \u2014 the watcher at the gate. Monorepo: the product + the fictional customer.",
   "workspaces": [
+    "packages/kernel",
     "packages/agamemnon",
     "packages/agamemnon/adapter",
     "packages/agamemnon/console",

@@ -1,0 +1,20 @@
+{
+  "name": "@agamemnon/kernel",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Agamemnon effect kernel — pure, dependency-free core shared by every runtime.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "build:guards": "node scripts/build-guards.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
