@@ -1,0 +1,10 @@
+{
+  "name": "@agamemnon/hooks",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Agamemnon pre-tool hooks for Claude Code, Cursor, Codex, Gemini CLI and Windsurf.",
+  "bin": { "agamemnon-hook": "./bin/agamemnon-hook.js" },
+  "engines": { "node": ">=24" },
+  "dependencies": { "@agamemnon/kernel": "*" }
+}

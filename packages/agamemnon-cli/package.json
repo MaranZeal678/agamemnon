@@ -1,0 +1,10 @@
+{
+  "name": "@agamemnon/cli",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "agamemnon — init, sweep, coverage, harden-db, check-migration, receipts, admin.",
+  "bin": { "agamemnon": "./bin/agamemnon.js" },
+  "engines": { "node": ">=24" },
+  "dependencies": { "@agamemnon/kernel": "*", "libpg-query": "^17.6.0", "pg": "^8.13.0" }
+}
