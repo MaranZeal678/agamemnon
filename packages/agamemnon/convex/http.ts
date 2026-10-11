@@ -16,77 +16,130 @@ import type { Id } from "./_generated/dataModel";
 
 /**
  * Agamemnon ingress. The adapter (and thus the agent) only ever talks to these
- * endpoints — it never holds a database credential.
+ * endpoints — it never holds a database credential. Every endpoint requires
+ *   Authorization: Bearer <agent token>
+ * and the agent's identity comes from the token's registered record — never
+ * from the request body.
  *
- *   POST /run/start    { agent }                       → { runId }
- *   POST /propose      { runId, agent, tool, target,   → decision result
- *                        predicate, params,
- *                        agentClaimedRows, destructive }
- *   GET  /status/:id                                    → action status
- *   POST /run/finish   { runId, status }                → { ok }
+ *   POST /run/start    {}                                        → { runId }
+ *   POST /run/step     { runId, tool, target?, sql?, note, … }   → { actionId }
+ *   POST /propose      { runId, tool, target, predicate,         → { actionId, status }
+ *                        params?, agentClaimedRows }
+ *   GET  /status/:id                                             → action status
+ *   POST /run/finish   { runId, status }                         → { ok }
  */
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
+/** First line of an error, without Convex's "Uncaught Error:" prefix or a stack. */
+const clean = (e: any) => String(e?.message ?? e).split("\n")[0].replace(/^Uncaught Error: /, "");
+
+type Agent = { name: string; owner: string; actorType: string };
+
+async function authenticate(ctx: any, request: Request): Promise<Agent | Response> {
+  const header = request.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token) return json({ error: "missing agent token — send Authorization: Bearer <token>" }, 401);
+  const agent = await ctx.runQuery(internal.core.agentForToken, { token });
+  if (!agent) return json({ error: "unknown or revoked agent token" }, 401);
+  return agent;
+}
+
+async function body(request: Request): Promise<any> {
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
+}
+
 const runStart = httpAction(async (ctx, request) => {
-  const { agent } = await request.json();
-  if (typeof agent !== "string") return json({ error: "agent is required" }, 400);
-  const runId = await ctx.runMutation(internal.core.startRun, { agent });
-  return json({ runId });
+  const agent = await authenticate(ctx, request);
+  if (agent instanceof Response) return agent;
+  const runId = await ctx.runMutation(internal.core.startRun, { agent: agent.name });
+  return json({ runId, agent: agent.name });
 });
 
 const propose = httpAction(async (ctx, request) => {
-  const body = await request.json();
-  const { runId, agent, tool, target, predicate, params, agentClaimedRows, destructive } = body;
-  if (!runId || !agent || !tool || !target || !predicate) {
-    return json({ error: "runId, agent, tool, target, predicate are required" }, 400);
+  const agent = await authenticate(ctx, request);
+  if (agent instanceof Response) return agent;
+  const { runId, tool, target, predicate, params, agentClaimedRows } = await body(request);
+  if (!runId || !tool || !target || !predicate) {
+    return json({ error: "runId, tool, target, predicate are required" }, 400);
   }
-  // Start the durable workflow; the agent polls /status until a terminal decision.
-  const result = await ctx.runMutation(internal.workflow.kickoff, {
-    runId: runId as Id<"runs">,
-    agent,
-    tool,
-    target,
-    predicate,
-    params: params ?? {},
-    agentClaimedRows: Number(agentClaimedRows ?? 0),
-    destructive: destructive !== false, // postgres.delete is destructive by default
-  });
-  return json(result);
+  try {
+    // Note: any `destructive` field the agent sends is ignored — the server
+    // derives it from the tool. Same for `agent`: identity is the token.
+    const result = await ctx.runMutation(internal.workflow.kickoff, {
+      runId: runId as Id<"runs">,
+      agent: agent.name,
+      tool: String(tool),
+      target: String(target),
+      predicate: String(predicate),
+      params: params ?? {},
+      agentClaimedRows: Number(agentClaimedRows ?? 0),
+    });
+    return json(result);
+  } catch (e: any) {
+    return json({ error: clean(e) }, 400);
+  }
 });
 
 const runStep = httpAction(async (ctx, request) => {
-  const { runId, tool, target, sql, note, failed, error } = await request.json();
+  const agent = await authenticate(ctx, request);
+  if (agent instanceof Response) return agent;
+  const { runId, tool, target, sql, note, failed, error } = await body(request);
   if (!runId || !tool) return json({ error: "runId and tool are required" }, 400);
-  const result = await ctx.runMutation(internal.core.recordStep, {
-    runId: runId as Id<"runs">,
-    tool,
-    target: target ?? "loads",
-    sql: sql ?? "",
-    note: note ?? "",
-    failed: failed === true,
-    error: error ?? undefined,
-  });
-  return json(result);
+  try {
+    const result = await ctx.runMutation(internal.core.recordStep, {
+      runId: runId as Id<"runs">,
+      agent: agent.name,
+      tool: String(tool),
+      target: String(target ?? ""),
+      sql: String(sql ?? ""),
+      note: String(note ?? ""),
+      failed: failed === true,
+      error: error ?? undefined,
+    });
+    return json(result);
+  } catch (e: any) {
+    return json({ error: clean(e) }, 400);
+  }
 });
 
 const status = httpAction(async (ctx, request) => {
+  const agent = await authenticate(ctx, request);
+  if (agent instanceof Response) return agent;
   const url = new URL(request.url);
   const id = url.pathname.replace(/^\/status\//, "");
   if (!id) return json({ error: "action id required" }, 400);
-  const result = await ctx.runQuery(internal.core.getActionStatus, { actionId: id as Id<"actions"> });
-  if (!result) return json({ error: "not found" }, 404);
-  return json(result);
+  try {
+    const owner = await ctx.runQuery(internal.core.actionOwner, { actionId: id as Id<"actions"> });
+    if (!owner) return json({ error: "not found" }, 404);
+    if (owner !== agent.name) return json({ error: "not found" }, 404); // no cross-agent reads
+    const result = await ctx.runQuery(internal.core.getActionStatus, { actionId: id as Id<"actions"> });
+    if (!result) return json({ error: "not found" }, 404);
+    return json(result);
+  } catch {
+    return json({ error: "not found" }, 404);
+  }
 });
 
 const runFinish = httpAction(async (ctx, request) => {
-  const { runId, status } = await request.json();
-  await ctx.runMutation(internal.core.finishRun, {
-    runId: runId as Id<"runs">,
-    status: status === "killed" ? "killed" : "completed",
-  });
-  return json({ ok: true });
+  const agent = await authenticate(ctx, request);
+  if (agent instanceof Response) return agent;
+  const { runId, status: s } = await body(request);
+  try {
+    await ctx.runMutation(internal.core.finishRun, {
+      runId: runId as Id<"runs">,
+      agent: agent.name,
+      status: s === "killed" ? "killed" : "completed",
+    });
+    return json({ ok: true });
+  } catch (e: any) {
+    return json({ error: clean(e) }, 400);
+  }
 });
 
 const http = httpRouter();

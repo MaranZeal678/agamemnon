@@ -37,7 +37,37 @@ const classifierVerdict = v.object({
   latencyMs: v.optional(v.number()),
 });
 
+// Who asked for an action. Gen-2 treats humans, scripts, agents and MCP
+// clients identically: one policy, one audit trail.
+const actorType = v.union(v.literal("agent"), v.literal("human"), v.literal("script"), v.literal("mcp"));
+
 export default defineSchema({
+  // Registered agents. The agent authenticates with a bearer token whose
+  // SHA-256 is stored here; the agent's name comes from THIS row, never from
+  // the request body. `owner` is the human who launched / owns the agent —
+  // they may not approve its requests (three-party separation).
+  agents: defineTable({
+    name: v.string(),
+    owner: v.string(),
+    actorType: actorType,
+    tokenHash: v.string(),
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_name", ["name"]),
+
+  // Console operators. Same token scheme; role gates what they may do.
+  operators: defineTable({
+    name: v.string(),
+    role: v.union(v.literal("admin"), v.literal("approver"), v.literal("auditor")),
+    tokenHash: v.string(),
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_name", ["name"]),
+
   // One agent invocation. Holds the per-run destructive budget counter and the
   // killswitch. Side tasks and the delete all share a run.
   runs: defineTable({
@@ -76,6 +106,7 @@ export default defineSchema({
     estimatedRows: v.number(), // measured by Agamemnon via its own credential
     actualRows: v.optional(v.number()), // reconciled after execution
     status: v.union(
+      v.literal("shadowed"), // shadow mode: decided and recorded, never executed
       v.literal("logged"), // display-only telemetry step (reasoning/observation)
       v.literal("proposed"),
       v.literal("classifying"),
@@ -101,6 +132,20 @@ export default defineSchema({
     executedAt: v.optional(v.number()),
     // A note carried from a reconciliation halt or execution error.
     error: v.optional(v.string()),
+    // ── Gen-2 hardening ──
+    actorType: v.optional(actorType),
+    // The predicate with every literal replaced by $n — what the classifier sees.
+    predicateShape: v.optional(v.string()),
+    // Tables the predicate's subqueries read (granted SELECT to the per-request role).
+    referencedTables: v.optional(v.array(v.string())),
+    // Distinct human approvals this action needs (1, or 2 above the threshold).
+    requiredApprovals: v.optional(v.number()),
+    // Shadow mode: the decision Agamemnon WOULD have enforced.
+    wouldDecision: v.optional(v.union(v.literal("allow"), v.literal("approval"), v.literal("block"))),
+    // The real per-request Postgres role used for execution (created and dropped in one transaction).
+    executionRole: v.optional(v.string()),
+    // WAL position recorded just before execution, for point-in-time recovery.
+    walLsn: v.optional(v.string()),
   })
     .index("by_run", ["runId", "seq"])
     .index("by_status", ["status"])
@@ -124,19 +169,29 @@ export default defineSchema({
     decision: v.union(v.literal("approve"), v.literal("deny")),
     note: v.string(),
     decidedAt: v.number(),
+    // The authenticated operator who decided (optional only for pre-Gen-2 rows).
+    decidedBy: v.optional(v.string()),
+    decidedByRole: v.optional(v.string()),
   }).index("by_action", ["actionId"]),
 
-  // Policy configuration as DATA (allowlist + budget). Thresholds themselves are
-  // constants in policy.ts; this singleton makes the allowlist visible/seedable.
+  // Policy configuration as DATA. Every threshold the engine uses is read from
+  // here (the kernel supplies defaults for anything unset).
   policies: defineTable({
     key: v.string(), // "active"
     allowlist: v.array(v.string()),
     perRunDestructiveRowBudget: v.number(),
     updatedAt: v.number(),
+    thresholds: v.optional(v.any()), // Partial<Thresholds> from @agamemnon/kernel
+    levels: v.optional(v.any()), // per-rule monitor | approve | block
+    mode: v.optional(v.union(v.literal("enforce"), v.literal("shadow"))),
+    twoPersonRowThreshold: v.optional(v.number()),
+    approvalTimeoutMs: v.optional(v.number()),
+    classifierDomain: v.optional(v.string()),
   }).index("by_key", ["key"]),
 
-  // Append-only audit trail. Written in the same transaction as the events it
-  // records. Never updated, never deleted.
+  // Append-only, hash-chained audit trail. Written in the same transaction as
+  // the events it records. Never updated, never deleted — not even by the demo
+  // reset, which appends a "demo-reset" event instead.
   auditLog: defineTable({
     at: v.number(),
     kind: v.union(
@@ -154,21 +209,37 @@ export default defineSchema({
       v.literal("killswitch"),
       v.literal("run-start"),
       v.literal("run-end"),
+      v.literal("shadow"),
+      v.literal("auth"),
+      v.literal("demo-reset"),
+      v.literal("policy-change"),
+      v.literal("provision"),
     ),
     runId: v.optional(v.id("runs")),
     actionId: v.optional(v.id("actions")),
     detail: v.string(),
     data: v.optional(v.any()),
+    // Who caused this event (agent name, operator name, or "agamemnon").
+    actor: v.optional(v.string()),
+    // Hash chain (optional only so pre-Gen-2 rows still load; every new row has them).
+    seq: v.optional(v.number()),
+    prevHash: v.optional(v.string()),
+    hash: v.optional(v.string()),
   })
     .index("by_action", ["actionId"])
     .index("by_run", ["runId"])
-    .index("by_time", ["at"]),
+    .index("by_time", ["at"])
+    .index("by_seq", ["seq"]),
 
   // Per-agent rolling statistics the policy engine reads (the 30-day median).
   agentStats: defineTable({
     agent: v.string(),
     median30d: v.number(),
     updatedAt: v.number(),
+    // Real executed row counts (last 30 days, capped). Once there are enough
+    // samples the median is recomputed from them instead of the seeded value.
+    samples: v.optional(v.array(v.object({ rows: v.number(), at: v.number() }))),
+    seededMedian: v.optional(v.number()),
   }).index("by_agent", ["agent"]),
 
   // Eval scoreboard: one row per (model, dataset) with the headline metrics the

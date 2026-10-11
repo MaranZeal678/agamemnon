@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as access from "../access.js";
 import type * as classifier from "../classifier.js";
 import type * as core from "../core.js";
 import type * as execute from "../execute.js";
@@ -22,6 +23,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  access: typeof access;
   classifier: typeof classifier;
   core: typeof core;
   execute: typeof execute;

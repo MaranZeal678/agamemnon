@@ -147,8 +147,10 @@ async function main() {
   for (const cfg of CONFIGS) results.push(await scoreConfig(cfg, held));
 
   const url = process.env.CONVEX_URL ?? "http://127.0.0.1:3210";
+  const operatorToken = process.env.AGAMEMNON_OPERATOR_MARAN_TOKEN ?? process.env.AGAMEMNON_OPERATOR_TOKEN ?? "";
+  if (!operatorToken) throw new Error("set AGAMEMNON_OPERATOR_MARAN_TOKEN (an admin operator token) to publish eval results");
   const client = new ConvexHttpClient(url);
-  await client.mutation(api.core.saveEvalResults, { results });
+  await client.mutation(api.core.saveEvalResults, { operatorToken, results });
   console.log(`\nWrote ${results.length} rows to Convex (console → Eval tab). Deployment: ${url}`);
 }
 

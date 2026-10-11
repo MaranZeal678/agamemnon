@@ -15,6 +15,8 @@
  *
  * The agent constructs one Adapter, opens a run, logs its reasoning steps, and
  * calls `propose()` for every write. It NEVER sees a database connection string.
+ * It authenticates with its own bearer token (AGAMEMNON_AGENT_TOKEN); the agent
+ * name shown in the console comes from that token's registration, not from here.
  * `propose()` returns once the action reaches a terminal decision (blocked /
  * approved+executed / denied), polling /status under the hood.
  */
@@ -31,7 +33,8 @@ export type ActionStatus =
   | "executing"
   | "executed"
   | "failed"
-  | "undone";
+  | "undone"
+  | "shadowed";
 
 export interface FiredRule {
   name: string;
@@ -43,6 +46,9 @@ export interface ProposeResult {
   actionId: string;
   status: ActionStatus;
   decision: Decision;
+  /** Shadow mode: what Agamemnon would have enforced (nothing executed). */
+  wouldDecision?: Decision | null;
+  requiredApprovals?: number | null;
   estimatedRows: number;
   agentClaimedRows: number;
   ratioToMedian: number | null;
@@ -57,23 +63,31 @@ export interface ProposeInput {
   predicate: string; // the WHERE clause; Agamemnon builds count/snapshot/delete
   params?: Record<string, unknown>;
   agentClaimedRows: number; // what the agent THINKS it will affect
-  destructive?: boolean; // defaults true (postgres.delete)
 }
 
-const TERMINAL: ActionStatus[] = ["blocked", "denied", "executed", "failed", "undone"];
+const TERMINAL: ActionStatus[] = ["blocked", "denied", "executed", "failed", "undone", "shadowed"];
 
 export class Adapter {
+  private readonly token: string;
+
   constructor(
     private readonly baseUrl: string,
     private readonly agent: string,
+    token?: string,
   ) {
     if (!baseUrl) throw new Error("Agamemnon base URL is required (AGAMEMNON_PROPOSE_URL)");
+    this.token = token ?? process.env.AGAMEMNON_AGENT_TOKEN ?? "";
+    if (!this.token) throw new Error("Agamemnon agent token is required (AGAMEMNON_AGENT_TOKEN)");
+  }
+
+  private headers(): Record<string, string> {
+    return { "content-type": "application/json", authorization: `Bearer ${this.token}` };
   }
 
   private async post(path: string, body: unknown): Promise<any> {
     const res = await fetch(new URL(path, this.baseUrl), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.headers(),
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`${path} → ${res.status}: ${await res.text()}`);
@@ -83,7 +97,7 @@ export class Adapter {
   private runId: string | null = null;
 
   async startRun(): Promise<string> {
-    const { runId } = await this.post("/run/start", { agent: this.agent });
+    const { runId } = await this.post("/run/start", {});
     this.runId = runId;
     return runId;
   }
@@ -104,24 +118,23 @@ export class Adapter {
   async propose(input: ProposeInput): Promise<ProposeResult> {
     const result: ProposeResult = await this.post("/propose", {
       runId: this.runId,
-      agent: this.agent,
       tool: "postgres.delete",
       target: input.target,
       predicate: input.predicate,
       params: input.params ?? {},
       agentClaimedRows: input.agentClaimedRows,
-      destructive: input.destructive !== false,
     });
-    if (TERMINAL.includes(result.status)) return result;
-    // Not terminal yet (awaiting approval) → poll until it is (Phase 3).
+    // Always resolve the full status (a pre-measurement block returns early).
     return this.awaitDecision(result.actionId, result);
   }
 
   async awaitDecision(actionId: string, seed?: ProposeResult): Promise<ProposeResult> {
-    const deadlineMs = 15 * 60 * 1000;
+    // Slightly longer than the server's default approval timeout (20 min), so
+    // the server — which always resolves a timeout to DENY — answers first.
+    const deadlineMs = 21 * 60 * 1000;
     const start = Date.now();
     while (Date.now() - start < deadlineMs) {
-      const res = await fetch(new URL(`/status/${actionId}`, this.baseUrl));
+      const res = await fetch(new URL(`/status/${actionId}`, this.baseUrl), { headers: this.headers() });
       const s = await res.json();
       if (TERMINAL.includes(s.status)) {
         return { ...(seed as ProposeResult), ...s, actionId };

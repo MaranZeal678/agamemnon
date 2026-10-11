@@ -9,17 +9,82 @@
  * ref: AGMN-BOZW-F6BTKX-X3LAO
  */
 
-import { useState } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { createContext, useContext, useState } from "react";
+import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type Tab = "live" | "audit" | "eval";
 
+// ── Operator session ────────────────────────────────────────────────────────
+// Every console query and mutation is authenticated with the operator's token.
+// The token is kept in this browser only (localStorage) — a convenience, not
+// the security boundary; Convex re-checks it on every call.
+const TOKEN_KEY = "agm.operatorToken";
+const TokenCtx = createContext<string>("");
+const useToken = () => useContext(TokenCtx);
+
+function readToken(): string {
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function App() {
+  const [token, setToken] = useState<string>(readToken);
+  const me = useQuery(api.core.whoami, token ? { operatorToken: token } : "skip");
+  const signOut = () => {
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* private mode */ }
+    setToken("");
+  };
+  if (!token || me === null) {
+    return <SignIn invalid={!!token && me === null} onToken={(t) => { try { localStorage.setItem(TOKEN_KEY, t); } catch { /* ignore */ } setToken(t); }} />;
+  }
+  if (me === undefined) return <div className="app"><div className="empty-hint" style={{ padding: 40 }}>connecting to Agamemnon…</div></div>;
+  return (
+    <TokenCtx.Provider value={token}>
+      <Shell me={me} signOut={signOut} />
+    </TokenCtx.Provider>
+  );
+}
+
+function SignIn({ onToken, invalid }: { onToken: (t: string) => void; invalid: boolean }) {
+  const [value, setValue] = useState("");
+  return (
+    <div className="app">
+      <div className="signin">
+        <div className="ag-word" style={{ fontSize: 28 }}>AGA<b>MEMNON</b></div>
+        <div className="ag-tag" style={{ marginBottom: 22 }}>operator sign-in</div>
+        <p style={{ color: "var(--muted)", fontSize: 13, maxWidth: 420 }}>
+          Paste your operator token (for the local demo: <code>AGAMEMNON_OPERATOR_ALICE_TOKEN</code> from <code>.env</code>).
+          Approvals are attributed to the operator who signs in, and the human who launched an agent can never approve its requests.
+        </p>
+        <input
+          className="note-input"
+          type="password"
+          autoFocus
+          placeholder="agm_op_…"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) onToken(value.trim()); }}
+          style={{ width: 420, marginTop: 10 }}
+        />
+        {invalid && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>That token is unknown or revoked.</div>}
+        <div style={{ marginTop: 12 }}>
+          <button className="btn gold" disabled={!value.trim()} onClick={() => onToken(value.trim())}>Sign in</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Shell({ me, signOut }: { me: { name: string; role: string }; signOut: () => void }) {
+  const operatorToken = useToken();
   const [tab, setTab] = useState<Tab>("live");
   const [selected, setSelected] = useState<Id<"actions"> | null>(null);
-  const latestRun = useQuery(api.core.latestRun);
+  const latestRun = useQuery(api.core.latestRun, { operatorToken });
   const killRun = useMutation(api.core.killRun);
 
   return (
@@ -46,10 +111,14 @@ export function App() {
             <span className={latestRun === undefined ? "dot off" : "dot"} />
             {latestRun === undefined ? "connecting…" : "live · reactive"}
           </div>
+          <div className="ag-conn" title="signed-in operator">
+            {me.name} · {me.role}
+            <button className="btn" style={{ marginLeft: 8, padding: "2px 8px" }} onClick={signOut}>sign out</button>
+          </div>
           <button
             className="btn kill"
-            disabled={!latestRun || latestRun.status !== "running"}
-            onClick={() => latestRun && killRun({ runId: latestRun._id })}
+            disabled={!latestRun || latestRun.status !== "running" || me.role === "auditor"}
+            onClick={() => latestRun && killRun({ runId: latestRun._id, operatorToken })}
           >
             Kill Run
           </button>
@@ -83,7 +152,8 @@ function LiveView({
   selected: Id<"actions"> | null;
   setSelected: (id: Id<"actions">) => void;
 }) {
-  const feed = useQuery(api.core.consoleFeed, { limit: 40 });
+  const operatorToken = useToken();
+  const feed = useQuery(api.core.consoleFeed, { operatorToken, limit: 40 });
 
   return (
     <div className="ag-body">
@@ -112,6 +182,7 @@ function StatusBadge({ status, decision }: { status: string; decision?: string |
     status === "executed" || status === "approved" ? "executed" :
     status === "classifying" ? "classifying" :
     status === "failed" ? "failed" :
+    status === "shadowed" ? "approval" :
     status === "denied" || status === "undone" || status === "logged" ? "denied" : "";
   return <span className={"badge " + cls}>{label}</span>;
 }
@@ -172,12 +243,25 @@ function highlightSql(sql: string) {
 }
 
 function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
-  const ctx = useQuery(api.core.actionContext, { actionId });
+  const operatorToken = useToken();
+  const ctx = useQuery(api.core.actionContext, { operatorToken, actionId });
   const approve = useMutation(api.core.approve);
   const deny = useMutation(api.core.deny);
   const undo = useAction(api.execute.undo);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (e: any) {
+      setError(String(e?.data ?? e?.message ?? e).replace(/^.*Uncaught Error: /s, "").split("\n")[0]);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (ctx === undefined) return <div className="detail-empty">loading…</div>;
   if (ctx === null || !ctx.action) return <div className="detail-empty">action not found</div>;
@@ -232,8 +316,15 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
             never reduce it. The decision below is the deterministic policy engine's.
           </div>
 
+          {a.status === "shadowed" && (
+            <div className="doctrine">
+              <b>Shadow mode.</b> Nothing was executed. Agamemnon recorded what it would have done:{" "}
+              <b>{String(a.wouldDecision ?? "allow").toUpperCase()}</b>.
+            </div>
+          )}
+
           <div className="card">
-            <h3>Fired policy rules → {a.decision?.toUpperCase() ?? "—"}</h3>
+            <h3>Fired policy rules → {(a.status === "shadowed" ? a.wouldDecision : a.decision)?.toUpperCase() ?? "—"}</h3>
             {a.firedRules.length === 0 && <div style={{ color: "var(--dim)", fontSize: 13 }}>no rules fired — allowed</div>}
             {a.firedRules.map((r: any, i: number) => (
               <div className="rule" key={i}>
@@ -251,7 +342,16 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
       {/* Approve / Deny */}
       {a.status === "awaiting_approval" && (
         <div className="card">
-          <h3>Operator decision</h3>
+          <h3>
+            Operator decision · needs {a.requiredApprovals ?? 1} independent approver{(a.requiredApprovals ?? 1) > 1 ? "s" : ""}
+          </h3>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>
+            Requested by <b>{ctx.run?.agent}</b>
+            {ctx.agentOwner ? <> · launched by <b>{ctx.agentOwner}</b> (cannot approve)</> : null}
+            {ctx.approvals.length > 0 && (
+              <> · so far: {ctx.approvals.map((ap: any) => `${ap.decidedBy ?? "?"} ${ap.decision}d`).join(", ")}</>
+            )}
+          </div>
           <div className="decide">
             <textarea
               className="note-input"
@@ -264,14 +364,14 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
               <button
                 className="btn gold"
                 disabled={busy}
-                onClick={async () => { setBusy(true); try { await approve({ actionId, note }); } finally { setBusy(false); } }}
+                onClick={() => run(() => approve({ actionId, note, operatorToken }))}
               >
                 Approve
               </button>
               <button
                 className="btn danger"
                 disabled={busy}
-                onClick={async () => { setBusy(true); try { await deny({ actionId, note }); } finally { setBusy(false); } }}
+                onClick={() => run(() => deny({ actionId, note, operatorToken }))}
               >
                 Deny
               </button>
@@ -290,10 +390,17 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
           <button
             className="btn"
             disabled={busy}
-            onClick={async () => { setBusy(true); try { await undo({ actionId }); } finally { setBusy(false); } }}
+            onClick={() => run(() => undo({ actionId, operatorToken }))}
           >
             Undo — restore {a.actualRows?.toLocaleString()} rows
           </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="card" style={{ borderColor: "var(--red)" }}>
+          <h3 style={{ color: "var(--red)" }}>Refused</h3>
+          <div style={{ fontSize: 13 }}>{error}</div>
         </div>
       )}
 
@@ -315,15 +422,49 @@ function DetailPanel({ actionId }: { actionId: Id<"actions"> }) {
 
 // ── Audit view ──────────────────────────────────────────────────────────────
 function AuditView() {
-  const audit = useQuery(api.core.auditTail, { limit: 80 });
+  const operatorToken = useToken();
+  const convex = useConvex();
+  const audit = useQuery(api.core.auditTail, { operatorToken, limit: 80 });
+  const chain = useQuery(api.core.auditVerify, { operatorToken });
+  const [exporting, setExporting] = useState(false);
+  const exportChain = async () => {
+    setExporting(true);
+    try {
+      const lines: string[] = [];
+      let after: number | undefined = undefined;
+      for (;;) {
+        const page: any = await convex.query(api.core.auditExport, { operatorToken, afterSeq: after, limit: 1000 });
+        for (const r of page.rows) lines.push(JSON.stringify(r));
+        if (page.nextAfterSeq === null) break;
+        after = page.nextAfterSeq;
+      }
+      const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "application/x-ndjson" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `agamemnon-audit-${new Date().toISOString().slice(0, 19)}.jsonl`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <div className="ag-full">
-      <div className="section-label">Audit log · append-only · newest first</div>
+      <div className="section-label" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <span>Audit log · append-only · hash-chained · newest first</span>
+        {chain && (
+          <span className={"badge " + (chain.ok ? "executed" : "block")} title={chain.ok ? `head ${chain.headHash.slice(0, 16)}…` : chain.brokenAt?.reason}>
+            {chain.ok ? `chain verified · ${chain.checked} rows` : `CHAIN BROKEN at #${chain.brokenAt?.seq}`}
+          </span>
+        )}
+        <button className="btn" disabled={exporting} onClick={exportChain}>{exporting ? "exporting…" : "Export JSONL"}</button>
+      </div>
       {audit === undefined && <div className="empty-hint">loading…</div>}
       {audit && audit.length === 0 && <div className="empty-hint">No audit entries yet.</div>}
       {audit?.map((e: any) => (
         <div className="audit-line" key={e._id}>
           <span className="at">{new Date(e.at).toLocaleTimeString()}</span>
+          {typeof e.seq === "number" && <span className="at" title={e.hash}>#{e.seq}</span>}
           <span className={"audit-kind " + e.kind}>{e.kind}</span>
           <span className="audit-detail">{e.detail}</span>
         </div>
@@ -334,7 +475,8 @@ function AuditView() {
 
 // ── Eval view ───────────────────────────────────────────────────────────────
 function EvalView() {
-  const scores = useQuery(api.core.evalScores);
+  const operatorToken = useToken();
+  const scores = useQuery(api.core.evalScores, { operatorToken });
   return (
     <div className="ag-full">
       <div className="section-label">Blast-radius classifier · held-out evaluation</div>

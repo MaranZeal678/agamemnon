@@ -233,6 +233,10 @@ async function main() {
     if (result.classifier)
       sys(`classifier: ${result.classifier.class} (blast radius ${result.classifier.blast_radius}, ${result.classifier.source})`);
     ok("nothing was deleted. the dispatch board never moved.");
+  } else if (result.status === "shadowed") {
+    line(`${C.yellow}${C.bold}   SHADOW MODE — NOTHING EXECUTED${C.reset}`);
+    sys(`Agamemnon measured ${result.estimatedRows.toLocaleString()} rows and would have: ${String(result.wouldDecision ?? "allow").toUpperCase()}`);
+    sys(`fired rules: ${result.firedRules.map((r) => r.name).join(", ") || "none"}`);
   } else if (result.status === "denied") {
     line(`${C.red}${C.bold}   DENIED BY OPERATOR${C.reset}`);
     ok("nothing was deleted.");

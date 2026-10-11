@@ -212,3 +212,7 @@ table.eval tr.tuned td.label { color: var(--gold); }
 
 .empty-hint { color: var(--dim); font-size: 13px; padding: 30px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; }
 .scrolltable { overflow-x: auto; }
+
+/* Gen-2: operator sign-in */
+.signin { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; padding: 16px; text-align: center; }
+.signin code { font-family: var(--mono); font-size: 12px; color: var(--gold-2, #e8b93e); }
