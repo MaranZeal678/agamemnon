@@ -26,3 +26,4 @@ export * from "./admission.ts";
 export * from "./receipts.ts";
 export * from "./revert.ts";
 export * from "./artifacts.ts";
+export * from "./shell.ts";

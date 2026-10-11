@@ -1,0 +1,32 @@
+{
+  "name": "@agamemnon/broker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Agamemnon Gen-2 broker — the sole credential holder that previews, binds, admits, executes and verifies every agent effect.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "agamemnon-broker": "./bin/agamemnon-broker.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agamemnon/kernel": "*",
+    "libpg-query": "^17.6.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -5,6 +5,7 @@
   "description": "Agamemnon \u2014 the watcher at the gate. Monorepo: the product + the fictional customer.",
   "workspaces": [
     "packages/kernel",
+    "packages/broker",
     "packages/agamemnon",
     "packages/agamemnon/adapter",
     "packages/agamemnon/console",

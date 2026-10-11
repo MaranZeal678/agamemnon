@@ -260,3 +260,8 @@ export function guardPredicate(predicate: string, opts: GuardOptions): Predicate
 export function isSafeIdentifier(name: string): boolean {
   return /^[a-z_][a-z0-9_]{0,62}$/.test(name);
 }
+
+/** Is this function name on the side-effect / privilege denylist? (Shared with the broker's AST checks.) */
+export function isForbiddenFunction(name: string): boolean {
+  return FORBIDDEN_FUNCTIONS.has(name.toLowerCase());
+}
