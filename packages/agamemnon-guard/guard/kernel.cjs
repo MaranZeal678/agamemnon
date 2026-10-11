@@ -1158,7 +1158,10 @@ function admit(effect, ctx) {
     const { severity, level } = leveled(name, natural, levels);
     fired.push(level ? { name, severity, detail, level } : { name, severity, detail });
   };
-  for (const r of ctx.connectorRules ?? []) fired.push(r);
+  for (const r of ctx.connectorRules ?? []) {
+    const { severity, level } = r.level ? { severity: r.severity, level: r.level } : leveled(r.name, r.severity, levels);
+    fired.push(level ? { ...r, severity, level } : r);
+  }
   const req = effect.request;
   const count = primaryCount(effect);
   let reversibility = effect.reversibility;

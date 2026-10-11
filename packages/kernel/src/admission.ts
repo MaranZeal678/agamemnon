@@ -95,7 +95,11 @@ export function admit(effect: Effect, ctx: AdmissionContext): AdmissionResult {
     const { severity, level } = leveled(name, natural, levels);
     fired.push(level ? { name, severity, detail, level } : { name, severity, detail });
   };
-  for (const r of ctx.connectorRules ?? []) fired.push(r);
+  // Connector-evaluated rules honour the same per-rule levels as kernel rules.
+  for (const r of ctx.connectorRules ?? []) {
+    const { severity, level } = r.level ? { severity: r.severity, level: r.level } : leveled(r.name, r.severity, levels);
+    fired.push(level ? { ...r, severity, level } : r);
+  }
 
   const req = effect.request;
   const count = primaryCount(effect);

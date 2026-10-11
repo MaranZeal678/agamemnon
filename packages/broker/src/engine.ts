@@ -23,6 +23,7 @@ import {
   classifyOversight,
   connectorFidelity,
   DEFAULT_BUDGETS,
+  dependents,
   extractClaims,
   fidelityScore,
   receiptHash,
@@ -147,14 +148,14 @@ export class Engine {
   }
 
   // ── tasks ──────────────────────────────────────────────────────────────────
-  startTask(agent: PrincipalRow, input: { goal?: string; parentTaskId?: string }): TaskRow {
+  startTask(agent: PrincipalRow, input: { goal?: string; parentTaskId?: string; tenant?: string }): TaskRow {
     let rootOwner = agent.owner ?? agent.name;
     if (input.parentTaskId) {
       const parent = this.store.task(input.parentTaskId);
       if (!parent) throw new ConnectorError("unknown-task", "parent task not found");
       rootOwner = parent.rootOwner; // a sub-agent acts for the same human
     }
-    const t = this.store.createTask({ id: id("task"), parentId: input.parentTaskId ?? null, agent: agent.name, rootOwner, goal: input.goal ?? null });
+    const t = this.store.createTask({ id: id("task"), parentId: input.parentTaskId ?? null, agent: agent.name, rootOwner, goal: input.goal ?? null, tenant: input.tenant ?? null });
     this.store.audit({ kind: "task-start", actor: agent.name, taskId: t.id, detail: `task started by ${agent.name} for ${rootOwner}${input.parentTaskId ? ` (sub-task of ${input.parentTaskId})` : ""}: ${input.goal ?? "(no goal stated)"}` });
     return t;
   }
@@ -186,7 +187,7 @@ export class Engine {
       id: effectId,
       taskId: task.id,
       operation: input.operation,
-      target: { system, resource: input.target?.resource ?? String(input.params.connection ?? input.params.resource ?? "default"), env: input.target?.env, tenant: input.target?.tenant },
+      target: { system, resource: input.target?.resource ?? String(input.params.connection ?? input.params.resource ?? "default"), env: input.target?.env, tenant: task.tenant ?? input.target?.tenant },
       params: input.params,
       requester: { kind: agent.kind === "human" ? "human" : agent.kind, id: agent.name },
       delegation: this.delegation(task),
@@ -212,6 +213,13 @@ export class Engine {
     }
 
     const effect = prepared.effect;
+    // Confused-deputy guard: a task scoped to one tenant may not touch another's data.
+    if (task.tenant && effect.request.target.tenant && effect.request.target.tenant !== task.tenant) {
+      prepared.connectorRules = [
+        ...(prepared.connectorRules ?? []),
+        { name: "cross-tenant", severity: "block", detail: `this task acts for tenant "${task.tenant}" but the effect touches "${effect.request.target.tenant}"` },
+      ];
+    }
     const fp = `${input.operation}:${(prepared.internal?.fingerprint as string) ?? requestFingerprint(effect.request)}`;
     const principal = this.store.principal(agent.name);
     const fidelity = connectorFidelity(this.store.fidelity(system));
@@ -260,7 +268,7 @@ export class Engine {
       requiredApprovals: adm.requiredApprovals,
       reversibility: adm.reversibility,
       fingerprint: fp,
-      effect: { ...effect, internal: prepared.internal ?? null, readLabels: prepared.readLabels ?? null },
+      effect: { ...effect, internal: prepared.internal ?? null, readLabels: prepared.readLabels ?? null, connectorRules: prepared.connectorRules ?? [] },
       admission: adm,
       binding,
       result: null,
@@ -599,10 +607,32 @@ export class Engine {
     this.store.audit({ kind: "artifact", actor: operator.name, detail: `${operator.name} promoted artifact ${artifactId} — it will outlive its task` });
   }
 
-  async undoEffect(operator: PrincipalRow, effectId: string) {
+  /**
+   * Effects in OTHER task lineages that read what these effects wrote, after
+   * they ran. Reverting underneath them could break their work, so a revert
+   * with dependants is refused unless an operator explicitly forces it.
+   */
+  dependentsOf(effectIds: string[], excludeTasks: string[]): Array<{ id: string; taskId: string; operation: string; summary: string }> {
+    const all = this.store.recentEffects(5000).filter((e) => ["executed", "held"].includes(e.status));
+    const nodes = all.map((e) => ({ id: e.id, at: e.createdAt, reads: e.effect?.reads ?? [], writes: e.effect?.writes ?? [] }));
+    const out = new Map<string, { id: string; taskId: string; operation: string; summary: string }>();
+    for (const id of effectIds) {
+      for (const d of dependents(nodes, id)) {
+        const row = all.find((e) => e.id === d.id)!;
+        if (!excludeTasks.includes(row.taskId)) out.set(row.id, { id: row.id, taskId: row.taskId, operation: row.operation, summary: row.effect?.preview?.summary ?? "" });
+      }
+    }
+    return [...out.values()];
+  }
+
+  async undoEffect(operator: PrincipalRow, effectId: string, opts: { force?: boolean } = {}) {
     if (operator.kind !== "human" || operator.role === "auditor") throw new ConnectorError("forbidden", "only approvers may undo");
     const row = this.store.effect(effectId);
     if (!row || row.status !== "executed") throw new ConnectorError("not-executed", "only executed effects can be undone");
+    const deps = this.dependentsOf([effectId], this.store.lineage(row.taskId));
+    if (deps.length && !opts.force) {
+      throw new ConnectorError("has-dependents", `${deps.length} later effect(s) in other tasks built on this one: ${deps.map((d) => `${d.operation} (${d.id})`).join(", ")} — re-run with force to revert anyway`);
+    }
     const c = this.connectorFor(row.operation);
     if (!c.compensate) throw new ConnectorError("irreversible", `${row.operation} has no automatic reversal`);
     const r = await c.compensate(row, this.ctx());
@@ -615,10 +645,14 @@ export class Engine {
   }
 
   /** Revert everything a task lineage did, newest first, preserving later human edits. */
-  async revertTask(operator: PrincipalRow, taskId: string) {
+  async revertTask(operator: PrincipalRow, taskId: string, opts: { force?: boolean } = {}) {
     if (operator.kind !== "human" || operator.role === "auditor") throw new ConnectorError("forbidden", "only approvers may revert");
     const ids = this.store.lineage(taskId);
     const effects = ids.flatMap((t) => this.store.effectsByTask(t)).sort((a, b) => b.createdAt - a.createdAt);
+    const deps = this.dependentsOf(effects.filter((e) => e.status === "executed").map((e) => e.id), ids);
+    if (deps.length && !opts.force) {
+      throw new ConnectorError("has-dependents", `${deps.length} effect(s) in other tasks depend on this task's writes: ${deps.map((d) => `${d.operation} (${d.id}, task ${d.taskId})`).join(", ")} — re-run with force to revert anyway`);
+    }
     const summary: Array<{ system: string; detail: string; restored?: number; skipped?: number }> = [];
     for (const e of effects.filter((x) => x.status === "held")) {
       await this.cancelHold(operator, e.id);
@@ -786,6 +820,100 @@ export class Engine {
     }
   }
 
+  // ── poisoned sources ───────────────────────────────────────────────────────
+  /** Every task (and its executed effects) that read from a source now known to be poisoned. */
+  poisoned(source: string) {
+    const tasks = this.store.listTasks(1000).filter((t) => t.taint.untrustedSources.some((s) => s.includes(source)));
+    return tasks.map((t) => ({
+      taskId: t.id,
+      agent: t.agent,
+      rootOwner: t.rootOwner,
+      effects: this.store.lineage(t.id).flatMap((id) => this.store.effectsByTask(id)).filter((e) => e.status === "executed" || e.status === "held").map((e) => ({ id: e.id, operation: e.operation, summary: e.effect?.preview?.summary ?? "" })),
+    }));
+  }
+
+  // ── evidence pack ──────────────────────────────────────────────────────────
+  /**
+   * Signed receipts annotated with the controls they evidence. The mapping is
+   * INFORMATIONAL — it is not a certification or legal advice.
+   */
+  evidence(): string[] {
+    return this.store.receipts().map((s: any) => {
+      const r = s.receipt;
+      const human = r.approvers.length > 0;
+      return JSON.stringify({
+        receipt: s,
+        controls: {
+          "EU AI Act Art. 12 (record-keeping)": "automatically generated, hash-chained event record",
+          "EU AI Act Art. 14 (human oversight)": human ? `approved by ${r.approvers.map((a: any) => a.id).join(", ")} before execution` : r.decision === "allow" ? "admitted by deterministic policy; human could reverse" : `decision: ${r.decision}`,
+          "SOC 2 CC8.1 (change management)": human ? "change authorised by an independent approver bound to the measured effect" : "change admitted under pre-approved policy",
+          "AIUC-1 logging / oversight / unauthorised actions": `outcome ${r.observed.outcome}; fidelity ${r.verification.fidelity ?? "n/a"}; claims ${r.verification.claims.map((c: any) => `${c.type}:${c.status}`).join(",") || "none"}`,
+        },
+        informational: true,
+      });
+    });
+  }
+
+  // ── policy replay ──────────────────────────────────────────────────────────
+  /** Re-run admission for past effects under a DRAFT policy and report what would flip. */
+  replayPolicy(draft: { levels?: RuleLevels; budgets?: BudgetLimits; twoPersonRowThreshold?: number }, limit = 500) {
+    const ledger = this.store.ledgerAll();
+    const flips: Array<{ id: string; operation: string; summary: string; before: string; after: string }> = [];
+    let checked = 0;
+    for (const row of this.store.recentEffects(limit)) {
+      if (!row.effect?.request || row.effect?.canary || !row.wouldDecision || row.effect.precondition === "refused") continue;
+      checked++;
+      const effect = stripInternal(row.effect);
+      const adm = admit(effect, {
+        now: row.createdAt,
+        levels: draft.levels ?? this.opts.levels,
+        budgets: draft.budgets ?? this.opts.budgets,
+        twoPersonRowThreshold: draft.twoPersonRowThreshold ?? this.opts.twoPersonRowThreshold,
+        connectorRules: row.effect.connectorRules ?? [],
+        ledger: ledger.filter((e) => e.at < row.createdAt),
+        canDefer: row.reversibility === "hold",
+      });
+      if (adm.wouldDecision !== row.wouldDecision) flips.push({ id: row.id, operation: row.operation, summary: row.effect.preview?.summary ?? "", before: row.wouldDecision, after: adm.wouldDecision });
+    }
+    return { checked, flips };
+  }
+
+  // ── gated policy changes (two people) ──────────────────────────────────────
+  requestPolicyChange(by: PrincipalRow, change: Record<string, unknown>): string {
+    if (by.role !== "admin") throw new ConnectorError("forbidden", "only admins may request policy changes");
+    const cid = id("pc");
+    this.store.addPolicyChange(cid, by.name, change);
+    const replay = change.levels || change.budgets || change.twoPersonRowThreshold ? this.replayPolicy(change as any, 200) : null;
+    this.store.audit({ kind: "policy-change", actor: by.name, detail: `${by.name} requested policy change ${cid}: ${Object.keys(change).join(", ")}${replay ? ` — replay: ${replay.flips.length} of ${replay.checked} past decisions would flip` : ""} (needs a second operator)` });
+    return cid;
+  }
+
+  decidePolicyChange(by: PrincipalRow, changeId: string, approve: boolean) {
+    const pc = this.store.policyChange(changeId);
+    if (!pc || pc.status !== "pending") throw new ConnectorError("not-found", "no pending policy change with that id");
+    if (by.role !== "admin" && by.role !== "approver") throw new ConnectorError("forbidden", "only approvers or admins may decide policy changes");
+    if (by.name === pc.requestedBy) throw new ConnectorError("approver-refused", "the requester of a policy change cannot approve it");
+    if (!approve) {
+      this.store.decidePolicyChange(changeId, "rejected", by.name);
+      this.store.audit({ kind: "policy-change", actor: by.name, detail: `${by.name} rejected policy change ${changeId}` });
+      return { status: "rejected" };
+    }
+    const c = pc.change;
+    if (c.mode === "enforce" || c.mode === "shadow") {
+      this.opts.mode = c.mode;
+      this.store.setSetting("mode", c.mode);
+    }
+    if (c.levels) this.opts.levels = c.levels;
+    if (c.budgets) this.opts.budgets = c.budgets;
+    if (typeof c.twoPersonRowThreshold === "number") this.opts.twoPersonRowThreshold = c.twoPersonRowThreshold;
+    if (typeof c.canaryRate === "number") this.opts.canaryRate = c.canaryRate;
+    if (c.webhook !== undefined) this.opts.webhook = c.webhook;
+    for (const k of ["levels", "budgets", "canaryRate", "webhook", "twoPersonRowThreshold"]) if (k in c) this.store.setSetting(k, c[k]);
+    this.store.decidePolicyChange(changeId, "applied", by.name);
+    this.store.audit({ kind: "policy-change", actor: by.name, detail: `${by.name} approved and applied policy change ${changeId} requested by ${pc.requestedBy}: ${JSON.stringify(c).slice(0, 300)}` });
+    return { status: "applied" };
+  }
+
   // ── views ──────────────────────────────────────────────────────────────────
   view(effectId: string): EffectView {
     const r = this.store.effect(effectId)!;
@@ -814,6 +942,6 @@ export class Engine {
 }
 
 function stripInternal(e: any): Effect {
-  const { internal: _i, readLabels: _r, canary: _c, ...rest } = e ?? {};
+  const { internal: _i, readLabels: _r, canary: _c, connectorRules: _cr, ...rest } = e ?? {};
   return rest as Effect;
 }

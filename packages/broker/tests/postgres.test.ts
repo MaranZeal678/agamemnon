@@ -82,6 +82,9 @@ d("broker × Postgres — live", () => {
     expect((await go("DELETE FROM orders WHERE 1=1; DROP TABLE customers")).firedRules[0].name).toBe("multi-statement");
     expect((await go("DELETE FROM orders WHERE id = (SELECT 1 FROM pg_sleep(5))")).firedRules[0].name).toBe("forbidden-function");
     expect((await go("DELETE FROM orders WHERE customer_id IN (SELECT id FROM agent_notes)")).firedRules[0].name).toBe("table-not-allowed");
+    expect((await go("DELETE FROM agent_notes WHERE id = 1")).firedRules[0].name).toBe("table-not-allowed"); // the target itself
+    expect((await go("UPDATE agent_notes SET body = 'x'")).firedRules[0].name).toBe("table-not-allowed");
+    expect((await go("INSERT INTO agent_notes (body) VALUES ('x')")).firedRules[0].name).toBe("table-not-allowed");
     expect((await go("TRUNCATE orders")).firedRules[0].name).toBe("truncate-refused");
     expect((await go("COPY customers TO STDOUT")).firedRules[0].name).toBe("export-verb");
     expect((await go("SELECT * FROM pg_catalog.pg_authid", "postgres.query")).firedRules[0].name).toBe("foreign-schema");

@@ -121,7 +121,7 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
       if (req.method === "POST" && path === "/v1/tasks") {
         if (!isAgent) return send(403, { error: "tasks are started by agents" });
         if (me.status === "suspended") return send(403, { error: `${me.name} is suspended after repeated claim contradictions; its owner must reinstate it` });
-        const t = engine.startTask(me, { goal: body.goal, parentTaskId: body.parentTaskId });
+        const t = engine.startTask(me, { goal: body.goal, parentTaskId: body.parentTaskId, tenant: body.tenant });
         return send(200, { taskId: t.id, rootOwner: t.rootOwner });
       }
       if (req.method === "POST" && (mm = m(/^\/v1\/tasks\/([\w-]+)\/end$/))) {
@@ -205,13 +205,18 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
           audit: store.auditTail(80),
           chain: store.verifyAudit(),
           targets: store.listTargets().map((t: any) => ({ system: t.system, resource: t.resource, env: t.env })),
+          policyChanges: store.policyChanges(),
         });
       }
       if (req.method === "POST" && (mm = m(/^\/v1\/effects\/([\w-]+)\/(approve|deny)$/))) {
         return send(200, await engine.decide(me, mm[1], mm[2] as "approve" | "deny", String(body.note ?? "")));
       }
-      if (req.method === "POST" && (mm = m(/^\/v1\/effects\/([\w-]+)\/undo$/))) return send(200, await engine.undoEffect(me, mm[1]));
-      if (req.method === "POST" && (mm = m(/^\/v1\/tasks\/([\w-]+)\/revert$/))) return send(200, await engine.revertTask(me, mm[1]));
+      if (req.method === "POST" && (mm = m(/^\/v1\/effects\/([\w-]+)\/undo$/))) return send(200, await engine.undoEffect(me, mm[1], { force: body.force === true }));
+      if (req.method === "POST" && (mm = m(/^\/v1\/tasks\/([\w-]+)\/revert$/))) return send(200, await engine.revertTask(me, mm[1], { force: body.force === true }));
+      if (req.method === "GET" && path === "/v1/taint/dependents") return send(200, { source: url.searchParams.get("source"), tasks: engine.poisoned(String(url.searchParams.get("source") ?? "")) });
+      if (req.method === "GET" && path === "/v1/evidence") return send(200, engine.evidence().join("\n") + "\n", "application/x-ndjson");
+      if (req.method === "POST" && path === "/v1/policy/replay") return send(200, engine.replayPolicy(body, Number(body.limit ?? 500)));
+      if (req.method === "POST" && (mm = m(/^\/v1\/policy-changes\/([\w-]+)\/(approve|reject)$/))) return send(200, engine.decidePolicyChange(me, mm[1], mm[2] === "approve"));
       if (req.method === "POST" && (mm = m(/^\/v1\/artifacts\/([\w.:-]+)\/promote$/))) {
         engine.promoteArtifact(me, mm[1]);
         return send(200, { ok: true });
@@ -257,14 +262,16 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
         store.audit({ kind: "provision", actor: me.name, detail: `secret ${body.name} stored in the vault (value never logged); placeholder issued` });
         return send(200, { name: body.name, placeholder });
       }
+      // Policy is never changed by one person: these create a pending change a second operator must approve.
       if (req.method === "POST" && path === "/v1/admin/mode") {
-        engine.setMode(body.mode === "shadow" ? "shadow" : "enforce", me.name);
-        return send(200, { mode: engine.mode });
+        const changeId = engine.requestPolicyChange(me, { mode: body.mode === "shadow" ? "shadow" : "enforce" });
+        return send(200, { changeId, status: "pending", note: "a second operator must approve: POST /v1/policy-changes/:id/approve" });
       }
       if (req.method === "POST" && path === "/v1/admin/settings") {
-        for (const k of ["canaryRate", "webhook", "budgets", "levels"]) if (k in body) store.setSetting(k, body[k]);
-        store.audit({ kind: "policy-change", actor: me.name, detail: `settings changed: ${Object.keys(body).join(", ")} (takes effect on restart)` });
-        return send(200, { ok: true });
+        const change: Record<string, unknown> = {};
+        for (const k of ["canaryRate", "webhook", "budgets", "levels", "twoPersonRowThreshold"]) if (k in body) change[k] = body[k];
+        const changeId = engine.requestPolicyChange(me, change);
+        return send(200, { changeId, status: "pending" });
       }
       if (req.method === "POST" && path === "/v1/admin/canary") {
         const effectId = engine.injectCanary(body.taskId ? store.task(body.taskId) : null, `manual by ${me.name}`);

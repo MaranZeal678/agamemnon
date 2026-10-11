@@ -1,0 +1,100 @@
+/*
+ * Agamemnon — AI-agent write-path guardian
+ * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
+ *
+ * Proprietary and confidential. No licence is granted to use, copy, modify,
+ * distribute, or run this software beyond local evaluation of this repository
+ * as published. See LICENSE at the repository root.
+ *
+ * ref: AGMN-BOZW-F6BTKX-X3LAO
+ */
+
+import { describe, it, expect, beforeEach } from "vitest";
+import { makeBroker, pgAvailable, resetTestDb, P } from "./helpers.ts";
+import { consolePage, approvePage } from "../src/pages.ts";
+
+describe("console pages", () => {
+  it("their inline scripts are valid JavaScript", () => {
+    for (const html of [consolePage(), approvePage("eff_123")]) {
+      const js = /<script>([\s\S]*)<\/script>/.exec(html)![1];
+      expect(() => new Function(js)).not.toThrow();
+    }
+  });
+});
+
+const PG = await pgAvailable();
+(PG ? describe : describe.skip)("tenancy, dependencies, policy lifecycle, evidence (live Postgres)", () => {
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+  const sql = (s: string) => ({ connection: "test", sql: s });
+
+  it("a tenant-scoped task cannot touch or read another tenant's rows (confused deputy)", async () => {
+    const b = makeBroker();
+    const bot = P(b, "support-bot");
+    const t = b.engine.startTask(bot, { goal: "help customer 7", tenant: "7" });
+    const wide = await b.engine.propose(bot, { taskId: t.id, operation: "postgres.sql", params: sql("DELETE FROM orders WHERE status = 'cancelled'") });
+    expect(wide.status).toBe("blocked");
+    expect(wide.firedRules.find((r) => r.name === "cross-tenant")?.detail).toMatch(/belong to a tenant other than "7"/);
+    const own = await b.engine.propose(bot, { taskId: t.id, operation: "postgres.sql", params: sql("DELETE FROM orders WHERE status = 'cancelled' AND customer_id = 7") });
+    expect(own.firedRules.map((r) => r.name)).not.toContain("cross-tenant");
+    const peek = await b.engine.propose(bot, { taskId: t.id, operation: "postgres.query", params: sql("SELECT id, customer_id FROM orders WHERE customer_id = 8 LIMIT 3") });
+    expect(peek.status).toBe("failed");
+    expect(peek.error).toMatch(/another tenant — result withheld/);
+    const sub = b.engine.startTask(P(b, "helper-1"), { parentTaskId: t.id, tenant: "99" });
+    expect(b.store.task(sub.id)!.tenant).toBe("7"); // a sub-agent cannot widen its tenant
+  });
+
+  it("reverting a task whose writes another task built on is refused unless forced", async () => {
+    const b = makeBroker();
+    const a = b.engine.startTask(P(b, "helper-1"), { goal: "tag orders" });
+    expect((await b.engine.propose(P(b, "helper-1"), { taskId: a.id, operation: "postgres.sql", params: sql("UPDATE orders SET note = 'reviewed' WHERE id <= 20") })).status).toBe("executed");
+    const c = b.engine.startTask(P(b, "helper-2"), { goal: "act on tagged orders" });
+    expect((await b.engine.propose(P(b, "helper-2"), { taskId: c.id, operation: "postgres.sql", params: sql("DELETE FROM orders WHERE note = 'reviewed' AND id <= 5") })).status).toBe("executed");
+    await expect(b.engine.revertTask(P(b, "alice"), a.id)).rejects.toThrow(/depend on this task's writes/);
+    const forced = await b.engine.revertTask(P(b, "alice"), a.id, { force: true });
+    expect(forced.summary.length).toBeGreaterThan(0);
+  });
+
+  it("replays a draft policy over past decisions and reports what would flip", async () => {
+    const b = makeBroker();
+    const t = b.engine.startTask(P(b, "cleanup-bot"), {});
+    const v = await b.engine.propose(P(b, "cleanup-bot"), { taskId: t.id, operation: "postgres.sql", params: sql("DELETE FROM orders WHERE status = 'stale'") });
+    expect(v.wouldDecision).toBe("approval");
+    const r = b.engine.replayPolicy({ levels: { "destructive-over-100": "monitor" } });
+    expect(r.flips).toEqual([expect.objectContaining({ id: v.id, before: "approval", after: "allow" })]);
+  });
+
+  it("policy changes need a second operator; the requester cannot approve their own", async () => {
+    const b = makeBroker();
+    const id = b.engine.requestPolicyChange(P(b, "maran"), { mode: "shadow" });
+    expect(b.engine.mode).toBe("enforce");
+    expect(() => b.engine.decidePolicyChange(P(b, "maran"), id, true)).toThrow(/cannot approve/);
+    expect(b.engine.decidePolicyChange(P(b, "alice"), id, true).status).toBe("applied");
+    expect(b.engine.mode).toBe("shadow");
+    expect(() => b.engine.requestPolicyChange(P(b, "alice"), { mode: "enforce" })).toThrow(/only admins/);
+  });
+
+  it("evidence pack annotates every signed receipt with the controls it supports (informational)", async () => {
+    const b = makeBroker();
+    const t = b.engine.startTask(P(b, "cleanup-bot"), {});
+    const v = await b.engine.propose(P(b, "cleanup-bot"), { taskId: t.id, operation: "postgres.sql", params: sql("DELETE FROM orders WHERE status = 'stale'") });
+    await b.engine.decide(P(b, "alice"), v.id, "approve");
+    const lines = b.engine.evidence().map((l) => JSON.parse(l));
+    expect(lines.length).toBeGreaterThan(0);
+    const last = lines[lines.length - 1];
+    expect(last.informational).toBe(true);
+    expect(last.controls["EU AI Act Art. 14 (human oversight)"]).toMatch(/approved by alice/);
+    expect(b.engine.verifyReceipts().ok).toBe(true);
+  });
+
+  it("finds every task that read from a source later found to be poisoned", async () => {
+    const b = makeBroker();
+    const t = b.engine.startTask(P(b, "support-bot"), {});
+    await b.engine.propose(P(b, "support-bot"), { taskId: t.id, operation: "postgres.query", params: sql("SELECT body FROM tickets") });
+    await b.engine.propose(P(b, "support-bot"), { taskId: t.id, operation: "postgres.sql", params: sql("UPDATE orders SET note = 'escalated' WHERE id = 1") });
+    const hits = b.engine.poisoned("tickets");
+    expect(hits.map((h) => h.taskId)).toEqual([t.id]);
+    expect(hits[0].effects.some((e) => e.operation === "postgres.sql")).toBe(true);
+  });
+});

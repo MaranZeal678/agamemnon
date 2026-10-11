@@ -345,3 +345,12 @@ describe("signed receipts", () => {
     expect(verifyReceipts([r2], v).ok).toBe(false); // missing predecessor
   });
 });
+
+describe("rule levels apply to connector-evaluated rules too", () => {
+  it("monitor softens a connector rule to a recorded no-op", () => {
+    const e = effect();
+    const r = admit(e, { now: NOW, connectorRules: [{ name: "destructive-over-100", severity: "approval", detail: "x" }], levels: { "destructive-over-100": "monitor" } });
+    expect(r.decision).toBe("allow");
+    expect(r.firedRules[0].level).toBe("monitor");
+  });
+});

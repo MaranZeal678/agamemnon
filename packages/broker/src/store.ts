@@ -85,7 +85,13 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS secrets (
   name TEXT PRIMARY KEY, iv TEXT NOT NULL, tag TEXT NOT NULL, data TEXT NOT NULL, placeholder TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS coverage (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, source TEXT, kind TEXT, detail TEXT);
+CREATE TABLE IF NOT EXISTS policy_changes (
+  id TEXT PRIMARY KEY, requested_by TEXT NOT NULL, at INTEGER NOT NULL, change TEXT NOT NULL,
+  status TEXT NOT NULL, decided_by TEXT, decided_at INTEGER);
 `;
+
+/** Additive migrations for databases created by earlier versions. */
+const MIGRATIONS = ["ALTER TABLE tasks ADD COLUMN tenant TEXT"];
 
 const j = (v: unknown) => (v === undefined ? null : JSON.stringify(v));
 const pj = <T>(s: unknown, fallback: T): T => {
@@ -113,6 +119,8 @@ export interface TaskRow {
   agent: string;
   rootOwner: string;
   goal: string | null;
+  /** Tenant this task may act on (confused-deputy guard), inherited by sub-tasks. */
+  tenant: string | null;
   status: "open" | "ended";
   taint: TaskTaint;
   createdAt: number;
@@ -162,6 +170,13 @@ export class Store {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec(SCHEMA);
+    for (const m of MIGRATIONS) {
+      try {
+        this.db.exec(m);
+      } catch {
+        /* already applied */
+      }
+    }
   }
 
   close() {
@@ -241,13 +256,14 @@ export class Store {
   }
 
   // ── tasks ──────────────────────────────────────────────────────────────────
-  createTask(t: { id: string; parentId?: string | null; agent: string; rootOwner: string; goal?: string | null }): TaskRow {
+  createTask(t: { id: string; parentId?: string | null; agent: string; rootOwner: string; goal?: string | null; tenant?: string | null }): TaskRow {
     const parent = t.parentId ? this.task(t.parentId) : null;
     const rootTaskId = parent ? parent.rootTaskId : t.id;
     const taint = parent ? parent.taint : CLEAN_TAINT; // sub-agents inherit the parent's taint
+    const tenant = parent?.tenant ?? t.tenant ?? null; // and can never widen its tenant
     this.db
-      .prepare("INSERT INTO tasks(id, parent_id, root_task_id, agent, root_owner, goal, status, taint, created_at) VALUES(?, ?, ?, ?, ?, ?, 'open', ?, ?)")
-      .run(t.id, t.parentId ?? null, rootTaskId, t.agent, t.rootOwner, t.goal ?? null, JSON.stringify(taint), Date.now());
+      .prepare("INSERT INTO tasks(id, parent_id, root_task_id, agent, root_owner, goal, status, taint, created_at, tenant) VALUES(?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)")
+      .run(t.id, t.parentId ?? null, rootTaskId, t.agent, t.rootOwner, t.goal ?? null, JSON.stringify(taint), Date.now(), tenant);
     return this.task(t.id)!;
   }
   task(id: string): TaskRow | null {
@@ -255,7 +271,7 @@ export class Store {
     if (!r) return null;
     return {
       id: r.id, parentId: r.parent_id, rootTaskId: r.root_task_id, agent: r.agent, rootOwner: r.root_owner, goal: r.goal,
-      status: r.status, taint: pj(r.taint, CLEAN_TAINT), createdAt: r.created_at, endedAt: r.ended_at,
+      tenant: r.tenant ?? null, status: r.status, taint: pj(r.taint, CLEAN_TAINT), createdAt: r.created_at, endedAt: r.ended_at,
     };
   }
   setTaskTaint(id: string, taint: TaskTaint) {
@@ -488,6 +504,26 @@ export class Store {
   }
   learnedRules() {
     return this.db.prepare("SELECT * FROM learned_rules ORDER BY accepted_at DESC").all() as any[];
+  }
+
+  // ── gated policy changes ───────────────────────────────────────────────────
+  addPolicyChange(id: string, requestedBy: string, change: unknown) {
+    this.db.prepare("INSERT INTO policy_changes(id, requested_by, at, change, status) VALUES(?, ?, ?, ?, 'pending')").run(id, requestedBy, Date.now(), JSON.stringify(change));
+  }
+  policyChange(id: string): { id: string; requestedBy: string; at: number; change: any; status: string } | null {
+    const r = this.db.prepare("SELECT * FROM policy_changes WHERE id = ?").get(id) as any;
+    return r ? { id: r.id, requestedBy: r.requested_by, at: r.at, change: pj(r.change, {}), status: r.status } : null;
+  }
+  decidePolicyChange(id: string, status: "applied" | "rejected", by: string) {
+    this.db.prepare("UPDATE policy_changes SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?").run(status, by, Date.now(), id);
+  }
+  policyChanges() {
+    return (this.db.prepare("SELECT * FROM policy_changes ORDER BY at DESC LIMIT 50").all() as any[]).map((r) => ({ ...r, change: pj(r.change, {}) }));
+  }
+  ledgerAll(): LedgerEntry[] {
+    return (this.db.prepare("SELECT * FROM ledger ORDER BY at").all() as any[]).map((r) => ({
+      at: r.at, rootOwner: r.root_owner, agent: r.agent, taskId: r.task_id, object: r.object, rows: r.rows, resources: r.resources, amountMinor: r.amount_minor,
+    }));
   }
 
   // ── coverage (bypass) events ───────────────────────────────────────────────

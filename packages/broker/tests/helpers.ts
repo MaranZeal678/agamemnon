@@ -102,7 +102,7 @@ export function makeBroker(engine: EngineOptions = {}): Broker & { dir: string }
     config: {
       secret: "postgres/test",
       allowlist: ["orders", "customers", "tickets", "audit_events"],
-      tables: { customers: { private: true, piiColumns: ["email"] }, tickets: { untrusted: true } },
+      tables: { customers: { private: true, piiColumns: ["email"] }, tickets: { untrusted: true }, orders: { tenantColumn: "customer_id" } },
       defaultMedian: 1000,
     },
   });

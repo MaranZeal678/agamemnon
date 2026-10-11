@@ -51,6 +51,8 @@ import type { EffectRow } from "../store.ts";
  */
 
 export interface PgTableConfig {
+  /** Column holding the tenant id; tasks scoped to a tenant may only touch their rows. */
+  tenantColumn?: string;
   private?: boolean; // contains personal / sensitive data
   untrusted?: boolean; // contains externally-submitted text (tickets, comments)
   piiColumns?: string[];
@@ -113,9 +115,11 @@ function locations(node: unknown): number[] {
   return out;
 }
 function relationsIn(node: unknown): Array<{ schema?: string; name: string }> {
+  // RangeVars appear both wrapped ({ RangeVar: {...} } in FROM lists) and bare
+  // (the `relation` of DELETE / UPDATE / INSERT) — match on the shape, not the key.
   const out: Array<{ schema?: string; name: string }> = [];
-  walk(node, (k, v) => {
-    if (k === "RangeVar" && v?.relname) out.push({ schema: v.schemaname, name: String(v.relname).toLowerCase() });
+  walk(node, (_k, v) => {
+    if (v && typeof v === "object" && !Array.isArray(v) && typeof v.relname === "string") out.push({ schema: v.schemaname, name: String(v.relname).toLowerCase() });
   });
   return out;
 }
@@ -354,7 +358,8 @@ export class PostgresConnector implements Connector {
 
     const table = a.table ?? a.tables?.[0] ?? a.referenced[0] ?? "(statement)";
     const object = `postgres:${name}/${table}`;
-    const target = { system: "postgres", resource: `${name}/${table}`, env: env ?? undefined };
+    const scopeTenant = req.target.tenant;
+    const target = { system: "postgres", resource: `${name}/${table}`, env: env ?? undefined, tenant: scopeTenant };
     const oversight = classifyOversight({ system: "postgres", operation: "sql", statement: a.sql });
     const rules: FiredRule[] = [];
     const base = {
@@ -381,7 +386,7 @@ export class PostgresConnector implements Connector {
           return {
             effect: { ...base, reversibility: "undo", preview: { summary: `read ${cnt.toLocaleString()} rows`, counts: { rows: cnt }, fidelity: "exact" }, precondition: `read:${a.fingerprint}`, writes: [], readsPrivate: priv },
             connectorRules: rules,
-            internal: { kind: "select", connection: name, sql: a.sql, referenced: a.referenced, fingerprint: a.fingerprint },
+            internal: { kind: "select", connection: name, sql: a.sql, referenced: a.referenced, fingerprint: a.fingerprint, tenant: scopeTenant ?? null },
             readLabels: { labels, private: priv, source: `postgres:${name}/${a.referenced.join(",")}` },
           };
         }
@@ -392,6 +397,11 @@ export class PostgresConnector implements Connector {
           const keys = (await q(c, `SELECT ${ident(pk)}::text AS k FROM ${ident(tbl)} WHERE ${a.where} LIMIT ${MAX_KEYS + 1}`)).rows.map((r: any) => r.k as string);
           if (keys.length > MAX_KEYS) throw new ConnectorError("too-large", `more than ${MAX_KEYS.toLocaleString()} rows — split the change`);
           const total = Number((await q(c, `SELECT count(*)::bigint AS n FROM ${ident(tbl)}`)).rows[0].n);
+          const tcol = cfg.tables?.[tbl]?.tenantColumn;
+          if (scopeTenant && tcol) {
+            const foreign = Number((await q(c, `SELECT count(*)::bigint AS n FROM ${ident(tbl)} WHERE (${a.where}) AND ${ident(tcol)}::text IS DISTINCT FROM $1`, [scopeTenant])).rows[0].n);
+            if (foreign > 0) rules.push({ name: "cross-tenant", severity: "block", detail: `${foreign.toLocaleString()} matching row(s) belong to a tenant other than "${scopeTenant}"` });
+          }
           const sample = (await q(c, `SELECT * FROM ${ident(tbl)} WHERE ${a.where} LIMIT 5`)).rows.map((r: any) => this.mask(encodeRow(r), cfg.tables?.[tbl]));
           if (a.kind === "delete") {
             const children = await this.cascadingChildren(c, tbl);
@@ -572,6 +582,14 @@ export class PostgresConnector implements Connector {
       await q(c, `SET LOCAL statement_timeout = ${MEASURE_TIMEOUT_MS}`);
       const rows = (await q(c, `SELECT * FROM (${i.sql}) agm_q LIMIT ${cap + 1}`)).rows;
       await q(c, "ROLLBACK");
+      // Response-side tenant check: verify what came BACK, not just what was asked (Asana-MCP class).
+      if (i.tenant) {
+        const cols = new Set((i.referenced as string[]).map((t) => cfg.tables?.[t]?.tenantColumn).filter(Boolean) as string[]);
+        for (const col of cols) {
+          const bad = rows.filter((r: any) => col in r && String(r[col]) !== String(i.tenant)).length;
+          if (bad) throw new ConnectorError("cross-tenant", `${bad} returned row(s) belong to another tenant — result withheld`);
+        }
+      }
       const pii = new Set((i.referenced as string[]).flatMap((t) => cfg.tables?.[t]?.piiColumns ?? []));
       const masked = rows.slice(0, cap).map((r: any) => this.mask(encodeRow(r), { piiColumns: [...pii] }));
       return {
