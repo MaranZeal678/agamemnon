@@ -1,0 +1,12 @@
+# Agamemnon broker — Copyright (c) 2026 Elamaran Elangovan. All rights reserved. ref: AGMN-BOZW-F6BTKX-X3LAO
+# Runs the Gen-2 broker on Node 24 (native TypeScript stripping, node:sqlite — no build step).
+FROM node:24-slim
+WORKDIR /app
+COPY . .
+RUN npm ci --omit=dev --no-audit --no-fund
+ENV AGAMEMNON_HOST=0.0.0.0 AGAMEMNON_PORT=7700 AGAMEMNON_DATA_DIR=/data AGAMEMNON_NO_KEYCHAIN=1 NODE_NO_WARNINGS=1
+RUN mkdir -p /data && chown node:node /data
+VOLUME /data
+EXPOSE 7700
+USER node
+CMD ["node", "packages/broker/src/main.ts"]

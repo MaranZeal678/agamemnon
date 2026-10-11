@@ -1,0 +1,36 @@
+# Agamemnon Gen-2 stack — Copyright (c) 2026 Elamaran Elangovan. All rights reserved. ref: AGMN-BOZW-F6BTKX-X3LAO
+#
+#   docker compose -f deploy/docker-compose.yml up
+#
+# Rules-only by default (no LLM key needed): the deterministic kernel decides.
+# The broker's admin token is written to the broker-data volume on first start:
+#   docker compose -f deploy/docker-compose.yml exec broker cat /data/bootstrap-admin.token
+# Set AGAMEMNON_MASTER_KEY (64 hex chars) from your KMS / secret store in production;
+# without it the vault key falls back to a 0600 file inside the volume.
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: agamemnon-local-only
+      POSTGRES_DB: app
+    ports: ["127.0.0.1:5433:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 30
+  mailpit:
+    image: axllent/mailpit:v1.20
+    ports: ["127.0.0.1:8025:8025"]
+  broker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.broker
+    environment:
+      AGAMEMNON_PUBLIC_URL: http://127.0.0.1:7700
+      AGAMEMNON_MASTER_KEY: ${AGAMEMNON_MASTER_KEY:-}
+    ports: ["127.0.0.1:7700:7700"]
+    volumes: ["broker-data:/data"]
+    depends_on:
+      postgres: { condition: service_healthy }
+volumes:
+  broker-data: {}

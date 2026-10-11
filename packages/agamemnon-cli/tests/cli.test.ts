@@ -92,7 +92,7 @@ try {
     await admin.connect();
     if (!(await admin.query("SELECT 1 FROM pg_database WHERE datname = 'agamemnon_cli_test'")).rowCount) await admin.query("CREATE DATABASE agamemnon_cli_test");
     await admin.end();
-    const db = new pg.Client({ connectionString: "postgres://127.0.0.1:5432/agamemnon_cli_test" });
+    const db = new pg.Client({ connectionString: Object.assign(new URL(ADMIN), { pathname: "/agamemnon_cli_test" }).toString() });
     await db.connect();
     try {
       await db.query("DROP TABLE IF EXISTS widgets; CREATE TABLE widgets (id int PRIMARY KEY); INSERT INTO widgets SELECT generate_series(1, 500);");

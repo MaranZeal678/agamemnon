@@ -1,5 +1,10 @@
 # Agamemnon + Northwind — how to run it
 
+> **Gen 2** — the broker that guards SQL, files, GitHub, Terraform, payments,
+> email and monitoring for any coding or ops agent — is documented in
+> [GEN2.md](GEN2.md) (`make broker`, `make bench`), with its
+> [threat model](THREAT-MODEL.md). This page covers the desktop demos.
+
 Two separate macOS apps that are **interlinked and genuinely work** (no simulation):
 
 - **Agamemnon** — the write-path guardrail. It **owns the account records** and runs a
@@ -205,7 +210,7 @@ The response tells you what happened:
 | `POST /approve` `{actionId, note}` · `POST /deny` `{actionId, note}` | resolve a held action |
 | `POST /undo` `{actionId}` | restore an executed delete from its snapshot |
 | `GET  /feed` · `GET /audit` | recent decisions; the audit trail |
-| `POST /enforcement` `{on:true|false}` · `POST /reset` | toggle policy; reset demo data |
+| `POST /enforcement` `{on:true|false}` · `POST /reset` | toggle policy; reset demo data — **operator only**: requires the `X-Agamemnon-Admin` header with the token the Agamemnon app generates on first launch (`~/Library/Application Support/Agamemnon/admin-token`). Requests from other browser origins are refused. |
 
 `selector` is one of `{ "ids": [1,2,3] }`, `{ "filter": { "status": "...", "region": "..." } }`,
 or `{ "all": true }`.

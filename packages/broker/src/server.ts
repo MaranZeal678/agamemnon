@@ -222,6 +222,8 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
         return send(200, { ok: true });
       }
       if (req.method === "GET" && path === "/v1/suggestions") return send(200, engine.suggestions());
+      if (req.method === "GET" && path === "/v1/metrics") return send(200, engine.metrics());
+      if (req.method === "POST" && path === "/v1/break-glass") return send(200, await engine.breakGlass(me, String(body.reason ?? ""), Number(body.minutes ?? 15)));
       if (req.method === "POST" && (mm = m(/^\/v1\/suggestions\/(.+)\/accept$/))) {
         engine.acceptSuggestion(me, decodeURIComponent(mm[1]));
         return send(200, { ok: true });
@@ -269,7 +271,7 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
       }
       if (req.method === "POST" && path === "/v1/admin/settings") {
         const change: Record<string, unknown> = {};
-        for (const k of ["canaryRate", "webhook", "budgets", "levels", "twoPersonRowThreshold"]) if (k in body) change[k] = body[k];
+        for (const k of ["canaryRate", "webhook", "budgets", "levels", "twoPersonRowThreshold", "freeze"]) if (k in body) change[k] = body[k];
         const changeId = engine.requestPolicyChange(me, change);
         return send(200, { changeId, status: "pending" });
       }

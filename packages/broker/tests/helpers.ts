@@ -22,8 +22,12 @@ export const ADMIN_URL = process.env.AGM_TEST_PG_ADMIN_URL ?? "postgres://127.0.
 export const TEST_DB = "agamemnon_broker_test";
 export const SVC = "agm_test_svc";
 export const SVC_PW = "agm_test_pw_" + "local_only";
-export const SVC_URL = `postgres://${SVC}:${SVC_PW}@127.0.0.1:5432/${TEST_DB}`;
-export const DB_URL = `postgres://127.0.0.1:5432/${TEST_DB}`;
+const admin = new URL(ADMIN_URL);
+const HOSTPORT = `${admin.hostname}:${admin.port || "5432"}`;
+/** Same server and credentials as the admin URL, different database. */
+const withDb = (db: string) => Object.assign(new URL(ADMIN_URL), { pathname: `/${db}` }).toString();
+export const SVC_URL = `postgres://${SVC}:${SVC_PW}@${HOSTPORT}/${TEST_DB}`;
+export const DB_URL = withDb(TEST_DB);
 
 export async function pgAvailable(): Promise<boolean> {
   const c = new pg.Client({ connectionString: ADMIN_URL, connectionTimeoutMillis: 1500 });
@@ -98,7 +102,7 @@ export function makeBroker(engine: EngineOptions = {}): Broker & { dir: string }
     system: "postgres",
     resource: "connection:test",
     env: "prod",
-    fingerprint: `127.0.0.1:5432/${TEST_DB}`,
+    fingerprint: `${HOSTPORT}/${TEST_DB}`,
     config: {
       secret: "postgres/test",
       allowlist: ["orders", "customers", "tickets", "audit_events"],

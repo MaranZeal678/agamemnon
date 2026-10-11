@@ -98,3 +98,24 @@ const PG = await pgAvailable();
     expect(hits[0].effects.some((e) => e.operation === "postgres.sql")).toBe(true);
   });
 });
+
+describe("break-glass and metrics", () => {
+  it("a declared emergency lets one operator approve alone, never the launcher, always audited", async () => {
+    const { makeBroker: mk, P: p } = await import("./helpers.ts");
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const b = mk();
+    writeFileSync(join(b.dir, "workspace/tests/x.test.ts"), "it('x', () => {})\n");
+    const t = b.engine.startTask(p(b, "coder"), {});
+    const v = await b.engine.propose(p(b, "coder"), { taskId: t.id, operation: "fs.delete", params: { path: "tests/x.test.ts" } });
+    expect(v.requiredApprovals).toBe(2);
+    await expect(b.engine.breakGlass(p(b, "alice"), "short", 10)).rejects.toThrow(/real reason/);
+    await b.engine.breakGlass(p(b, "alice"), "prod incident #4411 — failing test blocks the hotfix", 10);
+    const r = await b.engine.decide(p(b, "alice"), v.id, "approve");
+    expect(r.status).toBe("executed");
+    expect(b.store.auditTail(20).some((a) => a.kind === "break-glass" && /review required/.test(a.detail))).toBe(true);
+    const m = b.engine.metrics();
+    expect(m.executed).toBeGreaterThanOrEqual(1);
+    expect(m.oversightEffects).toBe(1);
+  });
+});

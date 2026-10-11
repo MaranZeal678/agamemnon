@@ -214,6 +214,11 @@ export class Engine {
 
     const effect = prepared.effect;
     // Confused-deputy guard: a task scoped to one tenant may not touch another's data.
+    // Change freeze: a declared freeze is enforced by the broker, not left to the agent's prompt.
+    const freeze = this.store.getSetting<{ until: number; reason: string } | null>("freeze", null);
+    if (freeze && freeze.until > now && (effect.writes.length || effect.egress || effect.creates.length)) {
+      prepared.connectorRules = [...(prepared.connectorRules ?? []), { name: "change-freeze", severity: "approval", detail: `change freeze until ${new Date(freeze.until).toISOString()}: ${freeze.reason}` }];
+    }
     if (task.tenant && effect.request.target.tenant && effect.request.target.tenant !== task.tenant) {
       prepared.connectorRules = [
         ...(prepared.connectorRules ?? []),
@@ -367,7 +372,15 @@ export class Engine {
     const records = [...prior, { approver: operator.name, decision, note, canary: false, at: this.opts.now() }].map((p) => ({
       approver: { kind: "human" as const, id: p.approver }, decision: p.decision, at: p.at,
     }));
-    const st = approvalState(subject, records);
+    let st = approvalState(subject, records);
+    // Break-glass: a declared, time-boxed emergency lets the declaring operator's
+    // single approval suffice. Still never the requester or the launcher; always
+    // audited and announced, and listed for post-incident review.
+    const glass = this.store.getSetting<{ by: string; until: number; reason: string } | null>("breakGlass", null);
+    if (st.state === "pending" && decision === "approve" && glass && glass.until > this.opts.now() && glass.by === operator.name) {
+      st = { state: "approved", approvers: [operator.name] };
+      this.store.audit({ kind: "break-glass", actor: operator.name, effectId, taskId: row.taskId, detail: `BREAK-GLASS approval by ${operator.name} (required ${subject.required}) — reason: ${glass.reason}; review required` });
+    }
     this.store.audit({
       kind: "approval",
       actor: operator.name,
@@ -820,6 +833,47 @@ export class Engine {
     }
   }
 
+  // ── break-glass ────────────────────────────────────────────────────────────
+  async breakGlass(operator: PrincipalRow, reason: string, minutes: number) {
+    if (operator.kind !== "human" || (operator.role !== "admin" && operator.role !== "approver")) throw new ConnectorError("forbidden", "only approvers may declare break-glass");
+    if (!reason || reason.trim().length < 10) throw new ConnectorError("reason-required", "break-glass needs a real reason (10+ characters)");
+    const until = this.opts.now() + Math.min(Math.max(1, minutes), 60) * 60_000;
+    this.store.setSetting("breakGlass", { by: operator.name, until, reason });
+    this.store.audit({ kind: "break-glass", actor: operator.name, detail: `BREAK-GLASS declared by ${operator.name} until ${new Date(until).toISOString()}: ${reason}` });
+    const hook = this.opts.webhook ?? this.store.getSetting<{ url: string; secret: string } | null>("webhook", null);
+    if (hook?.url) {
+      const body = JSON.stringify({ type: "agamemnon.break_glass", by: operator.name, until: new Date(until).toISOString(), reason });
+      await fetch(hook.url, { method: "POST", headers: { "content-type": "application/json", "x-agamemnon-signature": `sha256=${createHmac("sha256", hook.secret).update(body).digest("hex")}` }, body, signal: AbortSignal.timeout(3000) }).catch(() => {});
+    }
+    return { until };
+  }
+
+  // ── design-partner metrics (anonymised counters) ───────────────────────────
+  metrics() {
+    const effects = this.store.recentEffects(1_000_000);
+    const by = (s: string) => effects.filter((e) => e.status === s).length;
+    const reverts = this.store.auditRows(-1, 1_000_000).filter((a) => a.kind === "revert" || a.kind === "undo");
+    const preserved = reverts.reduce((acc, a) => acc + (Array.isArray(a.data) ? a.data.reduce((x: number, s: any) => x + (s.skipped ?? 0), 0) : Array.isArray((a.data as any)?.skipped) ? (a.data as any).skipped.length : 0), 0);
+    const claims = this.store.claims();
+    return {
+      tasks: this.store.listTasks(1_000_000).length,
+      effects: effects.length,
+      executed: by("executed"),
+      blocked: by("blocked"),
+      approvedByHumans: effects.filter((e) => e.status === "executed" && e.decision === "approval").length,
+      deniedByHumans: by("denied"),
+      heldThenCancelled: by("cancelled"),
+      driftRefused: by("drifted"),
+      reverted: by("reverted"),
+      oversightEffects: effects.filter((e) => (e.effect?.oversight ?? []).length).length,
+      claimsChecked: claims.length,
+      claimsContradicted: claims.filter((c) => c.status === "contradicted").length,
+      laterHumanEditsPreserved: preserved,
+      canariesCaught: by("canary-caught"),
+      canariesMissed: by("canary-missed"),
+    };
+  }
+
   // ── poisoned sources ───────────────────────────────────────────────────────
   /** Every task (and its executed effects) that read from a source now known to be poisoned. */
   poisoned(source: string) {
@@ -908,7 +962,7 @@ export class Engine {
     if (typeof c.twoPersonRowThreshold === "number") this.opts.twoPersonRowThreshold = c.twoPersonRowThreshold;
     if (typeof c.canaryRate === "number") this.opts.canaryRate = c.canaryRate;
     if (c.webhook !== undefined) this.opts.webhook = c.webhook;
-    for (const k of ["levels", "budgets", "canaryRate", "webhook", "twoPersonRowThreshold"]) if (k in c) this.store.setSetting(k, c[k]);
+    for (const k of ["levels", "budgets", "canaryRate", "webhook", "twoPersonRowThreshold", "freeze"]) if (k in c) this.store.setSetting(k, c[k]);
     this.store.decidePolicyChange(changeId, "applied", by.name);
     this.store.audit({ kind: "policy-change", actor: by.name, detail: `${by.name} approved and applied policy change ${changeId} requested by ${pc.requestedBy}: ${JSON.stringify(c).slice(0, 300)}` });
     return { status: "applied" };

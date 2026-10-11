@@ -1,4 +1,4 @@
-# Agamemnon — CI: typecheck and unit-test the kernel and the Convex policy layer.
+# Agamemnon — CI: typecheck and test every package, against a real Postgres, and run the bench.
 name: ci
 on:
   push:
@@ -6,6 +6,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 30
+    env:
+      AGM_TEST_PG_ADMIN_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      NODE_NO_WARNINGS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -13,14 +24,29 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Typecheck kernel
-        run: npx tsc -p packages/kernel/tsconfig.json
-      - name: Kernel tests
+      - name: Typecheck
+        run: |
+          npx tsc -p packages/kernel/tsconfig.json
+          npx tsc -p packages/broker/tsconfig.json
+          npx tsc -p packages/agamemnon-mcp/tsconfig.json
+          npx tsc -p packages/hooks/tsconfig.json
+          npx tsc -p packages/agamemnon-cli/tsconfig.json
+      - name: Kernel
         run: npx vitest run
         working-directory: packages/kernel
-      - name: Policy tests
+      - name: Policy (Convex layer)
         run: npx vitest run
         working-directory: packages/agamemnon
+      - name: Broker (live Postgres + mock APIs)
+        run: npx vitest run
+        working-directory: packages/broker
+      - name: MCP / hooks / CLI
+        run: |
+          (cd packages/agamemnon-mcp && npx vitest run)
+          (cd packages/hooks && npx vitest run)
+          (cd packages/agamemnon-cli && npx vitest run)
+      - name: Agent Incident Replay Bench
+        run: node bench/run.ts
       - name: Guard bundles are up to date
         run: |
           npm run build:guards -w @agamemnon/kernel

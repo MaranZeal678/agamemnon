@@ -12,7 +12,7 @@ CONVEX := cd $(AGA) && PATH="$(NODE24):$$PATH" CONVEX_AGENT_MODE=anonymous npx c
 .DEFAULT_GOAL := help
 .PHONY: help gen-creds db-setup seed-db agent-env setup convex-dev convex-env \
         seed-policy provision agent-protected agent-unprotected reset verify \
-        test psql principals verify-e2e
+        test psql principals verify-e2e broker test-all bench guards
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -98,3 +98,23 @@ verify-e2e: ## Live end-to-end hardening check (needs convex-dev running + provi
 
 psql: ## Open psql on the meridian database as the app role
 	@bash -c 'source scripts/lib.sh && load_env && psql_app'
+
+## ── Gen 2: the effect-typed reference monitor ───────────────────────────────
+BROKER_NODE := PATH="$(NODE24):$$PATH" NODE_NO_WARNINGS=1 node
+
+broker: ## Run the Gen-2 broker (http://127.0.0.1:7700/console; first run writes an admin token to ~/.agamemnon)
+	@$(BROKER_NODE) packages/broker/src/main.ts
+
+test-all: ## Every suite: kernel, policy, broker (live Postgres), MCP, hooks, CLI
+	@cd packages/kernel && npx vitest run
+	@cd $(AGA) && npx vitest run
+	@cd packages/broker && PATH="$(NODE24):$$PATH" npx vitest run
+	@cd packages/agamemnon-mcp && PATH="$(NODE24):$$PATH" npx vitest run
+	@cd packages/hooks && PATH="$(NODE24):$$PATH" npx vitest run
+	@cd packages/agamemnon-cli && PATH="$(NODE24):$$PATH" npx vitest run
+
+bench: ## Agent Incident Replay Bench → bench/results/scorecard.{json,md}
+	@$(BROKER_NODE) bench/run.ts
+
+guards: ## Re-bundle the shared kernel into both desktop guards
+	@npm run build:guards -w @agamemnon/kernel
