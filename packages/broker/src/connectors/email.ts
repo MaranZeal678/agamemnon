@@ -120,7 +120,8 @@ export class EmailConnector implements Connector {
         creates: [],
         egress: external.length > 0,
         reads: [],
-        writes: [`email:${name}`],
+        // Lease / dependency keys per recipient — one pending message must not serialise the whole mailbox.
+        writes: to.map((a) => `email:${name}:${a.toLowerCase()}`),
       },
       connectorRules: rules,
       canDefer: true,
