@@ -22,33 +22,65 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  CLEAN_TAINT: () => CLEAN_TAINT,
+  DEFAULT_BUDGETS: () => DEFAULT_BUDGETS,
   DEFAULT_THRESHOLDS: () => DEFAULT_THRESHOLDS,
   GENESIS_HASH: () => GENESIS_HASH,
+  GENESIS_RECEIPT: () => GENESIS_RECEIPT,
+  OVERSIGHT_CATALOG_VERSION: () => OVERSIGHT_CATALOG_VERSION,
   POLICY: () => POLICY,
   SqlGuardError: () => SqlGuardError,
+  absorbTaint: () => absorbTaint,
+  acquireLease: () => acquireLease,
+  admit: () => admit,
   applyClassifier: () => applyClassifier,
   approvalState: () => approvalState,
+  artifactsToRevoke: () => artifactsToRevoke,
   auditBody: () => auditBody,
+  bindEffect: () => bindEffect,
+  buildReceipt: () => buildReceipt,
   canonicalJson: () => canonicalJson,
   checkApprover: () => checkApprover,
+  checkBinding: () => checkBinding,
+  checkBudgets: () => checkBudgets,
+  checkReadVersion: () => checkReadVersion,
   classToSeverity: () => classToSeverity,
+  classifyOversight: () => classifyOversight,
   computeAuditHash: () => computeAuditHash,
+  connectorFidelity: () => connectorFidelity,
   decide: () => decide,
+  dependents: () => dependents,
+  effectHash: () => effectHash,
   evaluateRules: () => evaluateRules,
+  extractClaims: () => extractClaims,
+  fidelityScore: () => fidelityScore,
   guardPredicate: () => guardPredicate,
   hashOf: () => hashOf,
   heuristicVerdict: () => heuristicVerdict,
   isSafeIdentifier: () => isSafeIdentifier,
+  lethalTrifecta: () => lethalTrifecta,
   leveled: () => leveled,
   median: () => median,
   moreSevere: () => moreSevere,
   nextLink: () => nextLink,
+  planRevert: () => planRevert,
+  primaryCount: () => primaryCount,
+  priorDenial: () => priorDenial,
+  receiptHash: () => receiptHash,
+  receiptPayload: () => receiptPayload,
+  reconcileAll: () => reconcileAll,
+  reconcileClaim: () => reconcileClaim,
+  requestFingerprint: () => requestFingerprint,
   requiredApprovals: () => requiredApprovals,
   reviewerStats: () => reviewerStats,
   severityRank: () => severityRank,
   sha256Hex: () => sha256Hex,
+  signReceipt: () => signReceipt,
+  staleArtifacts: () => staleArtifacts,
   tokenize: () => tokenize,
-  verifyChain: () => verifyChain
+  trustLevel: () => trustLevel,
+  verifyChain: () => verifyChain,
+  verifyReceipts: () => verifyReceipts
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -699,33 +731,654 @@ function guardPredicate(predicate, opts) {
 function isSafeIdentifier(name) {
   return /^[a-z_][a-z0-9_]{0,62}$/.test(name);
 }
+
+// src/effect.ts
+function effectHash(e) {
+  return hashOf({
+    operation: e.request.operation,
+    target: e.request.target,
+    params: e.request.params,
+    reversibility: e.reversibility,
+    windowMs: e.windowMs ?? null,
+    counts: e.preview.counts,
+    amountMinor: e.preview.amountMinor ?? null,
+    precondition: e.precondition,
+    creates: e.creates,
+    egress: e.egress
+  });
+}
+function bindEffect(e, now, ttlMs = 15 * 60 * 1e3) {
+  const effectH = effectHash(e);
+  const issuedAt = now;
+  const expiresAt = now + ttlMs;
+  return {
+    effectHash: effectH,
+    precondition: e.precondition,
+    issuedAt,
+    expiresAt,
+    bindingHash: hashOf({ effectH, precondition: e.precondition, issuedAt, expiresAt })
+  };
+}
+function checkBinding(b, remeasured, now) {
+  if (now > b.expiresAt) return { ok: false, reason: "approval expired before execution" };
+  const recomputed = hashOf({ effectH: b.effectHash, precondition: b.precondition, issuedAt: b.issuedAt, expiresAt: b.expiresAt });
+  if (recomputed !== b.bindingHash) return { ok: false, reason: "binding was tampered with" };
+  if (remeasured.precondition !== b.precondition) {
+    return { ok: false, reason: "the target changed since approval (precondition drift) \u2014 re-measure and re-approve" };
+  }
+  if (effectHash(remeasured) !== b.effectHash) {
+    return { ok: false, reason: "the effect differs from the one approved \u2014 re-measure and re-approve" };
+  }
+  return { ok: true };
+}
+function requestFingerprint(r, shape) {
+  return hashOf({ op: r.operation, system: r.target.system, resource: r.target.resource, shape: shape ?? Object.keys(r.params).sort() });
+}
+
+// src/oversight.ts
+var OVERSIGHT_CATALOG_VERSION = "2026.10.1";
+var TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|e2e|test_[^/]*|[^/]*_test)\/|(^|\/)[^/]*(\.|_)(test|spec)\.[a-z0-9]+$|(^|\/)test_[^/]+\.py$|_test\.go$/i;
+var SKIP_MARKERS = [
+  [/\b(it|test|describe)\.skip\s*\(/, "test.skip / describe.skip"],
+  [/\bx(it|describe|test)\s*\(/, "xit / xdescribe"],
+  [/\b(it|test)\.todo\s*\(/, "test.todo"],
+  [/@pytest\.mark\.(skip|xfail)\b/, "@pytest.mark.skip / xfail"],
+  [/\bpytest\.skip\s*\(/, "pytest.skip()"],
+  [/@unittest\.skip/, "@unittest.skip"],
+  [/\bt\.Skip(Now|f)?\s*\(/, "t.Skip()"],
+  [/@(Disabled|Ignore)\b/, "@Disabled / @Ignore"],
+  [/#\[ignore\]/, "#[ignore]"],
+  [/\bskip\s*:\s*true\b/, "skip: true"]
+];
+var AGENT_CONFIG = /(^|\/)(\.claude\/settings[^/]*\.json|\.claude\/hooks?[^/]*|\.cursor\/(hooks\.json|rules|mcp\.json|cli\.json)|\.vscode\/settings\.json|\.codex\/[^/]+|codex\/config\.toml|\.gemini\/(settings\.json|policies?[^/]*)|\.windsurf\/[^/]+|\.mcp\.json|AGENTS\.md|CLAUDE\.md|\.agamemnon\/[^/]+)$/i;
+var CI_FILE = /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|\.gitlab-ci\.yml|\.circleci\/config\.yml|azure-pipelines\.yml|Jenkinsfile|\.buildkite\/[^/]+)$/i;
+var CODEOWNERS = /(^|\/)(\.github\/)?CODEOWNERS$/;
+var AUDIT_NAME = /(audit|_log$|^log_|history|journal|ledger)/i;
+function addedLines(d) {
+  if (d.diff) return d.diff.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1));
+  if (d.after !== void 0) {
+    const before = new Set((d.before ?? "").split("\n"));
+    return d.after.split("\n").filter((l) => !before.has(l));
+  }
+  return [];
+}
+function removedLines(d) {
+  if (d.diff) return d.diff.split("\n").filter((l) => l.startsWith("-") && !l.startsWith("---")).map((l) => l.slice(1));
+  if (d.before !== void 0) {
+    const after = new Set((d.after ?? "").split("\n"));
+    return d.before.split("\n").filter((l) => !after.has(l));
+  }
+  return [];
+}
+var TEST_DECL = /\b(it|test|describe)\s*\(|^\s*def test_|func Test[A-Z]|@Test\b|#\[test\]/;
+function classifyOversight(d) {
+  const out = [];
+  const add = (rule, detail) => out.push({ rule, detail });
+  const res = d.resource ?? "";
+  const op = d.operation.toLowerCase();
+  if (d.system === "fs" || d.system === "git" || d.system === "github") {
+    if (TEST_PATH.test(res) && (op === "delete" || op === "rename")) {
+      add("test-deleted", `test file ${res} would be ${op}d`);
+    }
+    if (TEST_PATH.test(res) && (op === "write" || op === "edit")) {
+      for (const line of addedLines(d)) {
+        for (const [re, name] of SKIP_MARKERS) if (re.test(line)) add("test-skipped", `${name} added in ${res}`);
+      }
+      const removedTests = removedLines(d).filter((l) => TEST_DECL.test(l)).length;
+      const addedTests = addedLines(d).filter((l) => TEST_DECL.test(l)).length;
+      if (removedTests > addedTests) add("tests-removed", `${removedTests - addedTests} test case(s) removed from ${res}`);
+      if (addedLines(d).some((l) => /expect\(\s*true\s*\)\.toBe\(\s*true\s*\)|\bassert\s+True\b|assertTrue\(\s*true\s*\)|assert\.ok\(\s*true\s*\)/.test(l))) {
+        add("assertion-trivialised", `trivially-true assertion added in ${res}`);
+      }
+    }
+    if (CI_FILE.test(res)) {
+      if (op === "delete") add("ci-pipeline-deleted", `CI definition ${res} would be deleted`);
+      for (const line of addedLines(d)) {
+        if (/continue-on-error\s*:\s*true/.test(line)) add("ci-continue-on-error", `continue-on-error: true added in ${res}`);
+        if (/\|\|\s*true\b|;\s*exit\s+0\b|set\s+\+e\b/.test(line)) add("ci-failure-masked", `failure masking ("${line.trim().slice(0, 60)}") added in ${res}`);
+        if (/allow_failure\s*:\s*true/.test(line)) add("ci-allow-failure", `allow_failure: true added in ${res}`);
+        if (/--no-verify|SKIP_TESTS|--skip-tests|-DskipTests/.test(line)) add("ci-checks-bypassed", `check bypass flag added in ${res}`);
+      }
+      if (op === "write" || op === "edit") add("ci-pipeline-changed", `CI definition ${res} modified (agents may not rewrite their own checks unreviewed)`);
+    }
+    if (CODEOWNERS.test(res)) add("codeowners-changed", `review ownership file ${res} would change`);
+    if (AGENT_CONFIG.test(res)) {
+      add("agent-config-changed", `agent permission/config file ${res} would change`);
+      for (const line of addedLines(d)) {
+        if (/autoApprove|"chat\.tools\.autoApprove"|bypassPermissions|dangerously-skip-permissions|--yolo|"defaultMode"\s*:\s*"(bypassPermissions|acceptEdits)"|trust-all-tools|"allow"\s*:\s*\[\s*"\*"/i.test(line)) {
+          add("agent-self-escalation", `permission escalation in ${res}: ${line.trim().slice(0, 80)}`);
+        }
+      }
+    }
+    if (/(^|\/)\.git\/hooks\//.test(res) || /(^|\/)\.husky\//.test(res)) add("git-hooks-changed", `git hook ${res} would change`);
+  }
+  if (d.system === "github" && op === "api") {
+    const call = String(d.params?.call ?? res);
+    if (/branch[_-]?protection|rulesets?/i.test(call) && /delete|remove|disable/i.test(call)) add("branch-protection-removed", `${call}`);
+    if (/branch[_-]?protection/i.test(call) && /update|put/i.test(call)) {
+      const checks = d.params?.required_status_checks?.contexts;
+      const reviews = d.params?.required_pull_request_reviews?.required_approving_review_count;
+      if (checks === null || Array.isArray(checks) && checks.length === 0) add("required-checks-removed", "required status checks cleared");
+      if (reviews === 0 || d.params?.required_pull_request_reviews === null) add("required-reviews-removed", "required reviews disabled");
+      if (d.params?.enforce_admins === false) add("admin-bypass-enabled", "admins may bypass protection");
+    }
+    if (/secret[_-]?scanning|dependabot|code[_-]?scanning/i.test(call) && /disable|delete/i.test(call)) add("security-scanning-disabled", call);
+    if (/audit[_-]?log/i.test(call) && /delete|disable|stream/i.test(call)) add("audit-log-changed", call);
+  }
+  if (d.system === "postgres") {
+    const s = (d.statement ?? "").replace(/\s+/g, " ");
+    if (/\bdisable\s+(row\s+level\s+security|trigger)\b/i.test(s)) add("db-guardrail-disabled", s.slice(0, 120));
+    if (/\bno\s+force\s+row\s+level\s+security\b/i.test(s)) add("db-guardrail-disabled", s.slice(0, 120));
+    if (/\bdrop\s+(policy|trigger|event\s+trigger)\b/i.test(s)) add("db-guardrail-dropped", s.slice(0, 120));
+    const tbl = /\b(?:drop|truncate|alter|delete\s+from|update)\s+(?:table\s+)?(?:if\s+exists\s+)?(?:only\s+)?("?[\w.]+"?)/i.exec(s)?.[1]?.replace(/"/g, "");
+    if (tbl && AUDIT_NAME.test(tbl.split(".").pop())) add("audit-data-modified", `statement modifies audit/history table ${tbl}`);
+    if (/\b(grant|alter\s+role)\b.*\b(superuser|bypassrls|all\s+privileges)\b/i.test(s)) add("privilege-escalation", s.slice(0, 120));
+    if (/\bset\s+(session_replication_role|row_security)\s*(=|to)\s*(replica|off)\b/i.test(s)) add("db-guardrail-disabled", s.slice(0, 120));
+    if (/\balter\s+system\s+set\s+(log_|pgaudit\.)/i.test(s)) add("db-logging-changed", s.slice(0, 120));
+  }
+  const awsCall = String(d.params?.action ?? (d.system === "aws" ? res : ""));
+  if (awsCall) {
+    const rules = [
+      [/cloudtrail:(StopLogging|DeleteTrail|PutEventSelectors|UpdateTrail)/i, "audit-trail-weakened"],
+      [/guardduty:(DeleteDetector|UpdateDetector|DisassociateFromMasterAccount|DeleteMembers)/i, "threat-detection-disabled"],
+      [/config:(StopConfigurationRecorder|DeleteConfigurationRecorder|DeleteDeliveryChannel)/i, "config-recording-disabled"],
+      [/logs:(DeleteLogGroup|PutRetentionPolicy|DeleteRetentionPolicy|DeleteSubscriptionFilter)/i, "logs-reduced"],
+      [/securityhub:(DisableSecurityHub|BatchDisableStandards)/i, "security-hub-disabled"],
+      [/cloudwatch:(DisableAlarmActions|DeleteAlarms)/i, "alarms-silenced"],
+      [/s3:(PutBucketLogging|DeleteBucketPolicy|PutBucketVersioning)/i, "storage-guardrail-changed"],
+      [/iam:(CreateAccessKey|CreateUser|AttachUserPolicy|PutUserPolicy|CreateLoginProfile|UpdateAssumeRolePolicy)/i, "persistent-identity-created"]
+    ];
+    for (const [re, rule] of rules) if (re.test(awsCall)) add(rule, awsCall);
+  }
+  if (d.system === "terraform") {
+    const type = String(d.params?.resourceType ?? "");
+    const actions = d.params?.actions ?? [];
+    const after = d.params?.after ?? {};
+    const destroying = actions.includes("delete");
+    const map = {
+      aws_cloudtrail: "audit-trail-weakened",
+      aws_guardduty_detector: "threat-detection-disabled",
+      aws_config_configuration_recorder: "config-recording-disabled",
+      aws_config_configuration_recorder_status: "config-recording-disabled",
+      aws_cloudwatch_log_group: "logs-reduced",
+      aws_cloudwatch_metric_alarm: "alarms-silenced",
+      aws_securityhub_account: "security-hub-disabled",
+      aws_s3_bucket_logging: "storage-guardrail-changed",
+      aws_s3_bucket_versioning: "storage-guardrail-changed",
+      aws_backup_vault_lock_configuration: "backup-protection-weakened",
+      github_branch_protection: "branch-protection-removed",
+      datadog_monitor: "alerts-muted",
+      pagerduty_service: "paging-changed"
+    };
+    if (map[type] && destroying) add(map[type], `${type}.${String(d.params?.name ?? "")} would be destroyed`);
+    if (type === "aws_cloudtrail" && after.enable_logging === false) add("audit-trail-weakened", "enable_logging = false");
+    if (type === "aws_guardduty_detector" && after.enable === false) add("threat-detection-disabled", "enable = false");
+    if (type === "aws_config_configuration_recorder_status" && after.is_enabled === false) add("config-recording-disabled", "is_enabled = false");
+    if (type === "aws_cloudwatch_metric_alarm" && after.actions_enabled === false) add("alarms-silenced", "actions_enabled = false");
+    if (type === "aws_cloudwatch_log_group" && typeof after.retention_in_days === "number") {
+      const before = d.params?.before?.retention_in_days;
+      if (typeof before === "number" && before > 0 && after.retention_in_days < before) {
+        add("logs-reduced", `log retention ${before} \u2192 ${after.retention_in_days} days`);
+      }
+    }
+    if (type === "datadog_monitor" && (after.notify_no_data === false || after.priority === null)) {
+    }
+    if (/^aws_iam_(access_key|user|user_policy|user_login_profile)$/.test(type) && actions.includes("create")) {
+      add("persistent-identity-created", `${type} would be created`);
+    }
+    if (/^aws_iam_.*policy/.test(type) && JSON.stringify(after).includes('"Action":"*"')) add("wildcard-privilege", `${type} grants Action "*"`);
+  }
+  if (d.system === "monitoring") {
+    const call = `${String(d.params?.provider ?? "")}:${String(d.params?.call ?? res)}`;
+    if (/mute|silence|downtime|snooze/i.test(call)) add("alerts-muted", call);
+    if (/delete.*(monitor|alert|rule|check)|disable.*(monitor|alert|service|integration)/i.test(call)) add("alerts-deleted", call);
+    if (/maintenance[_-]?window|escalation[_-]?polic(y|ies).*(update|delete)|service.*disable/i.test(call)) add("paging-changed", call);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return out.filter((f) => {
+    const k = `${f.rule}|${f.detail}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// src/claims.ts
+var norm = (x) => String(x).trim().toLowerCase();
+function reconcileClaim(claim, f) {
+  const v = (status, evidence) => ({ claim, status, evidence });
+  switch (claim.type) {
+    case "env": {
+      if (!f.envsTouched?.length) return v("unverifiable", "no target environments recorded");
+      const claimed = norm(claim.value);
+      const other = f.envsTouched.filter((e) => norm(e) !== claimed);
+      return other.length ? v("contradicted", `claimed only "${claim.value}", but the task touched: ${[...new Set(f.envsTouched)].join(", ")}`) : v("verified", `every touched target is "${claim.value}"`);
+    }
+    case "rows": {
+      const key = claim.subject ?? "*";
+      const real = f.rows?.[key] ?? (key === "*" && f.rows ? Object.values(f.rows).reduce((a, b) => a + b, 0) : void 0);
+      if (real === void 0) return v("unverifiable", `no measured row count for ${key}`);
+      const claimed = Number(claim.value);
+      const tolerance = Math.max(2, Math.ceil(claimed * 0.05));
+      return Math.abs(real - claimed) <= tolerance ? v("verified", `measured ${real.toLocaleString()} rows (claimed ${claimed.toLocaleString()})`) : v("contradicted", `claimed ${claimed.toLocaleString()} rows, the database shows ${real.toLocaleString()}`);
+    }
+    case "tests": {
+      if (!f.tests) return v("unverifiable", "no CI result available");
+      const claimsPass = claim.value === true || /pass|green|ok|success/i.test(String(claim.value));
+      if (!claimsPass) return v("verified", "agent did not claim a pass");
+      if (f.tests.conclusion !== "success") return v("contradicted", `claimed tests pass; CI conclusion is "${f.tests.conclusion}"`);
+      if ((f.tests.deletedTests ?? 0) > 0 || (f.tests.skipMarkersAdded ?? 0) > 0) {
+        return v(
+          "contradicted",
+          `CI is green only because ${f.tests.deletedTests ?? 0} test(s) were deleted and ${f.tests.skipMarkersAdded ?? 0} skip marker(s) were added in this task`
+        );
+      }
+      return v("verified", "CI succeeded with no tests removed or skipped in this task");
+    }
+    case "backup": {
+      if (!f.backup) return v("unverifiable", "no backup information");
+      if (claim.value === true || /done|taken|complete|exists|yes/i.test(String(claim.value))) {
+        if (!f.backup.exists) return v("contradicted", "claimed a backup exists; none was found");
+        if (f.backup.independent === false) return v("contradicted", "a backup exists but lives in the same blast radius as the data");
+        return v("verified", `restorable copy found${f.backup.at ? ` from ${new Date(f.backup.at).toISOString()}` : ""}`);
+      }
+      return v("verified", "agent did not claim a backup");
+    }
+    case "refund": {
+      if (f.refundsMinor === void 0) return v("unverifiable", "no payment records read");
+      const claimedMinor = Math.round(Number(claim.value) * 100);
+      return Math.abs(claimedMinor - f.refundsMinor) <= 1 ? v("verified", `refunds of ${(f.refundsMinor / 100).toFixed(2)} exist at the processor`) : v("contradicted", `claimed a refund of ${(claimedMinor / 100).toFixed(2)}; processor shows ${(f.refundsMinor / 100).toFixed(2)}`);
+    }
+    case "created":
+    case "deleted":
+    case "touched": {
+      const list = f[claim.type];
+      if (!list) return v("unverifiable", `no ${claim.type} list recorded`);
+      const want = norm(claim.value);
+      return list.some((x) => norm(x) === want) ? v("verified", `${claim.value} is in the recorded ${claim.type} set`) : v("contradicted", `${claim.value} is not among the ${list.length} recorded ${claim.type} item(s)`);
+    }
+    case "sent": {
+      if (f.sent === void 0) return v("unverifiable", "no outbox record");
+      const claimed = Number(claim.value);
+      return claimed === f.sent ? v("verified", `${f.sent} message(s) released`) : v("contradicted", `claimed ${claimed} sent; the outbox released ${f.sent}`);
+    }
+    case "reversible": {
+      if (f.reversible === void 0) return v("unverifiable", "no reversibility record");
+      const claimed = claim.value === true || /yes|true|possible/i.test(String(claim.value));
+      return claimed === f.reversible ? v("verified", f.reversible ? "an undo plan exists" : "the effect was irreversible") : v(
+        "contradicted",
+        f.reversible ? "agent claimed this cannot be rolled back \u2014 Agamemnon holds a working undo plan for it" : "agent claimed this can be rolled back \u2014 it was recorded as irreversible"
+      );
+    }
+  }
+}
+function reconcileAll(claims, facts) {
+  const verdicts = claims.map((c) => reconcileClaim(c, facts));
+  return { verdicts, contradicted: verdicts.filter((x) => x.status === "contradicted") };
+}
+function trustLevel(contradictions) {
+  if (contradictions >= 3) return "suspended";
+  if (contradictions >= 1) return "supervised";
+  return "normal";
+}
+var NUM = "(\\d[\\d,]*)";
+function extractClaims(text) {
+  const out = [];
+  const t = text.replace(/\s+/g, " ");
+  const push = (c) => out.push({ ...c, source: "extracted" });
+  const env = /\bonly (?:touched|affected|changed|modified|ran (?:it )?(?:against|on)|used) (?:the )?(staging|dev|development|test|sandbox|local|prod|production)\b/i.exec(t);
+  if (env) push({ type: "env", value: env[1].toLowerCase() });
+  const rows = new RegExp(`\\b(?:deleted|removed|updated|affected|cleaned up|inserted) (?:about |approximately |~)?${NUM} (?:rows|records)(?: (?:from|in) ([a-z_][a-z0-9_]*))?`, "i").exec(t);
+  if (rows) push({ type: "rows", value: Number(rows[1].replace(/,/g, "")), subject: rows[2] });
+  if (/\b(?:all )?tests (?:now )?(?:pass(?:es|ed)?|are (?:passing|green)|(?:are )?green)\b/i.test(t)) push({ type: "tests", value: true });
+  if (/\bbackup (?:is |was )?(?:done|taken|complete(?:d)?|created|in place)\b|\b(?:backed up|took a backup)\b/i.test(t)) push({ type: "backup", value: true });
+  if (/\b(?:rollback|roll back|undo) (?:is |was )?(?:impossible|not possible)\b|\bcan(?:not|'t) (?:be )?(?:rolled back|undone|restored|reverted)\b|\birreversibl[ey]\b/i.test(t)) {
+    push({ type: "reversible", value: false });
+  }
+  const refund = /\brefunded (?:you |the customer )?(?:\$|€|£)?(\d+(?:\.\d{1,2})?)/i.exec(t);
+  if (refund) push({ type: "refund", value: Number(refund[1]) });
+  const sent = new RegExp(`\\bsent (?:it |the (?:email|message) )?to ${NUM} (?:customers|recipients|users|people)`, "i").exec(t);
+  if (sent) push({ type: "sent", value: Number(sent[1].replace(/,/g, "")) });
+  return out;
+}
+
+// src/fleet.ts
+var DEFAULT_BUDGETS = {
+  windowMs: 60 * 60 * 1e3,
+  ownerRows: 2e4,
+  ownerResources: 25,
+  ownerAmountMinor: 5e4,
+  objectRows: 5e4,
+  ownerEffectsPerMinute: 60
+};
+function checkBudgets(ledger, next, now, limits = DEFAULT_BUDGETS) {
+  const recent = ledger.filter((e) => now - e.at < limits.windowMs);
+  const mine = recent.filter((e) => e.rootOwner === next.rootOwner);
+  const sum = (xs, k) => xs.reduce((a, e) => a + e[k], 0);
+  const out = [];
+  const agents = new Set(mine.map((e) => e.agent).concat(next.agent));
+  const rows = sum(mine, "rows") + next.rows;
+  if (rows > limits.ownerRows) {
+    out.push({
+      rule: "owner-row-budget",
+      detail: `${rows.toLocaleString()} rows changed in the last ${Math.round(limits.windowMs / 6e4)} min on behalf of ${next.rootOwner} across ${agents.size} agent(s) (limit ${limits.ownerRows.toLocaleString()})`
+    });
+  }
+  const res = sum(mine, "resources") + next.resources;
+  if (res > limits.ownerResources) {
+    out.push({ rule: "owner-resource-budget", detail: `${res} resources changed for ${next.rootOwner} (limit ${limits.ownerResources})` });
+  }
+  const amt = sum(mine, "amountMinor") + next.amountMinor;
+  if (next.amountMinor > 0 && amt > limits.ownerAmountMinor) {
+    out.push({ rule: "owner-money-budget", detail: `${(amt / 100).toFixed(2)} moved for ${next.rootOwner} (limit ${(limits.ownerAmountMinor / 100).toFixed(2)})` });
+  }
+  const objRows = sum(recent.filter((e) => e.object === next.object), "rows") + next.rows;
+  if (objRows > limits.objectRows) {
+    out.push({ rule: "object-row-budget", detail: `${objRows.toLocaleString()} rows changed on ${next.object} by everyone (limit ${limits.objectRows.toLocaleString()})` });
+  }
+  const lastMinute = mine.filter((e) => now - e.at < 6e4).length + 1;
+  if (lastMinute > limits.ownerEffectsPerMinute) {
+    out.push({ rule: "runaway-loop", detail: `${lastMinute} effects in the last minute for ${next.rootOwner} (limit ${limits.ownerEffectsPerMinute}/min)` });
+  }
+  return out;
+}
+var overlaps = (a, b) => a === b || a.startsWith(`${b}:`) || b.startsWith(`${a}:`);
+function acquireLease(leases, key, taskId, now, ttlMs = 5 * 60 * 1e3) {
+  const conflict = leases.find((l) => l.expiresAt > now && l.taskId !== taskId && overlaps(l.key, key));
+  if (conflict) return { ok: false, heldBy: conflict };
+  return { ok: true, lease: { key, taskId, expiresAt: now + ttlMs } };
+}
+function checkReadVersion(readVersion, currentVersion) {
+  if (!readVersion || !currentVersion) return { ok: true, detail: "no version tracked" };
+  return readVersion === currentVersion ? { ok: true, detail: "state unchanged since planning" } : { ok: false, detail: `planned against version ${readVersion.slice(0, 12)}, but the target is now ${currentVersion.slice(0, 12)} \u2014 another actor changed it` };
+}
+var CLEAN_TAINT = { readUntrusted: false, readPrivate: false, untrustedSources: [] };
+function absorbTaint(t, read) {
+  const untrusted = (read.labels ?? []).includes("untrusted");
+  return {
+    readUntrusted: t.readUntrusted || untrusted,
+    readPrivate: t.readPrivate || !!read.private,
+    untrustedSources: untrusted && read.source ? [.../* @__PURE__ */ new Set([...t.untrustedSources, read.source])] : t.untrustedSources
+  };
+}
+function lethalTrifecta(t, egress) {
+  const fires = egress && t.readUntrusted && t.readPrivate;
+  return {
+    fires,
+    detail: fires ? `this task read untrusted input (${t.untrustedSources.join(", ") || "unlabelled source"}) and private data, and this effect can send data out` : ""
+  };
+}
+function priorDenial(denials, fingerprint, taskId, rootOwner, now, ownerWindowMs = 24 * 3600 * 1e3) {
+  return denials.find(
+    (d) => d.fingerprint === fingerprint && (d.taskId === taskId || d.rootOwner === rootOwner && now - d.at < ownerWindowMs)
+  );
+}
+function fidelityScore(predicted, observed) {
+  const keys = Object.keys(predicted).filter((k) => k in observed);
+  if (keys.length === 0) return 1;
+  const errs = keys.map((k) => {
+    const p = predicted[k];
+    const o = observed[k];
+    if (p === o) return 0;
+    return Math.min(1, Math.abs(p - o) / Math.max(1, Math.abs(p), Math.abs(o)));
+  });
+  return 1 - errs.reduce((a, b) => a + b, 0) / errs.length;
+}
+function connectorFidelity(scores, floor = 0.98) {
+  if (scores.length === 0) return { mean: 1, trusted: true, samples: 0 };
+  const recent = scores.slice(-100);
+  const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
+  return { mean, trusted: mean >= floor, samples: recent.length };
+}
+
+// src/admission.ts
+function primaryCount(e) {
+  const c = e.preview.counts;
+  if (typeof c.rows === "number") return c.rows;
+  if (typeof c.records === "number") return c.records;
+  if (typeof c.recipients === "number") return c.recipients;
+  if (typeof c.resources === "number") return c.resources;
+  const plan = (c.destroy ?? 0) + (c.replace ?? 0) + (c.update ?? 0) + (c.create ?? 0);
+  if (plan > 0) return plan;
+  if (typeof c.files === "number") return c.files;
+  return 0;
+}
+var isWrite = (e) => e.writes.length > 0 || e.egress || e.creates.length > 0;
+function admit(effect, ctx) {
+  const levels = ctx.levels ?? {};
+  const fired = [];
+  const fire = (name, natural, detail) => {
+    const { severity, level } = leveled(name, natural, levels);
+    fired.push(level ? { name, severity, detail, level } : { name, severity, detail });
+  };
+  for (const r of ctx.connectorRules ?? []) fired.push(r);
+  const req = effect.request;
+  const count = primaryCount(effect);
+  let reversibility = effect.reversibility;
+  let convertToHold = false;
+  let needsTwo = false;
+  if (ctx.trust === "suspended") fire("agent-suspended", "block", `${req.requester.id} is suspended after repeated claim contradictions; its owner must reinstate it`);
+  else if (ctx.trust === "supervised" && isWrite(effect)) fire("agent-supervised", "approval", `${req.requester.id} recently made a claim the systems of record contradicted \u2014 every write now needs a human`);
+  if (ctx.fingerprint && ctx.denials?.length) {
+    const d = priorDenial(ctx.denials, ctx.fingerprint, req.taskId, req.delegation.rootOwner, ctx.now);
+    if (d) fire("previously-denied", "block", `an identical request was denied ${d.taskId === req.taskId ? "earlier in this task" : `for ${d.rootOwner} recently`}: ${d.reason}`);
+  }
+  const expected = req.declared?.expectedCount;
+  if (typeof expected === "number" && expected >= 0 && count > Math.max(expected * 3, expected + 50)) {
+    fire("intent-mismatch", "block", `the agent expected ~${expected.toLocaleString()} but the measured effect is ${count.toLocaleString()} (${expected > 0 ? (count / expected).toFixed(1) + "\xD7" : "unbounded"})`);
+  }
+  if (req.declared?.env && req.target.env && req.declared.env.toLowerCase() !== req.target.env.toLowerCase()) {
+    fire("environment-mismatch", "block", `the agent declared "${req.declared.env}" but the target is registered as "${req.target.env}"`);
+  }
+  const leases = [];
+  for (const key of effect.writes) {
+    const r = acquireLease(ctx.leases ?? [], key, req.taskId, ctx.now);
+    if (r.ok) leases.push(r.lease);
+    else fire("resource-leased", "block", `${key} is leased by task ${r.heldBy.taskId} until ${new Date(r.heldBy.expiresAt).toISOString()} \u2014 concurrent writers are serialised`);
+  }
+  if (ctx.readVersion && !ctx.readVersion.ok) fire("stale-read", "block", ctx.readVersion.detail);
+  const ledgerEntry = {
+    rootOwner: req.delegation.rootOwner,
+    agent: req.requester.id,
+    taskId: req.taskId,
+    object: `${req.target.system}:${req.target.resource}`,
+    rows: effect.writes.length ? effect.preview.counts.rows ?? effect.preview.counts.records ?? 0 : 0,
+    resources: (effect.preview.counts.destroy ?? 0) + (effect.preview.counts.replace ?? 0) + (effect.preview.counts.resources ?? 0),
+    amountMinor: effect.preview.amountMinor ?? 0
+  };
+  if (isWrite(effect)) {
+    for (const b of checkBudgets(ctx.ledger ?? [], ledgerEntry, ctx.now, ctx.budgets ?? DEFAULT_BUDGETS)) fire(b.rule, "block", b.detail);
+  }
+  if (effect.destroysBackups) fire("destroys-data-and-backups", "block", "this effect would destroy the data AND its last restorable copy \u2014 refused regardless of approval");
+  for (const o of effect.oversight) {
+    fire(`oversight:${o.rule}`, "approval", o.detail);
+    needsTwo = true;
+  }
+  if (reversibility === "irreversible") {
+    if (ctx.canDefer) {
+      convertToHold = true;
+      reversibility = "hold";
+      fired.push({ name: "irreversible-converted-to-hold", severity: "allow", detail: "converted to a held action with a cancel window" });
+    } else {
+      fire("irreversible-effect", "approval", "nothing can reverse this effect once it runs");
+      needsTwo = true;
+    }
+  }
+  const durable = effect.creates.filter((a) => a.durableAccess);
+  if (durable.length) {
+    fire("creates-durable-access", "approval", `creates ${durable.map((a) => `${a.kind} ${a.id}`).join(", ")} \u2014 revoked automatically when the task ends unless promoted`);
+  }
+  if (ctx.taint) {
+    const t = lethalTrifecta(ctx.taint, effect.egress);
+    if (t.fires) fire("lethal-trifecta", "approval", t.detail);
+  }
+  const lowFidelity = effect.preview.fidelity !== "exact" || ctx.connectorFidelityTrusted === false;
+  if (lowFidelity && isWrite(effect) && reversibility !== "undo" && reversibility !== "hold") {
+    fire("estimated-preview", "approval", `preview fidelity is ${ctx.connectorFidelityTrusted === false ? "below the connector's floor" : effect.preview.fidelity} for a write that cannot be undone`);
+  }
+  let decision = fired.reduce((acc, r) => moreSevere(acc, r.severity), "allow");
+  if (ctx.learnedAllow && decision === "approval") {
+    const relaxable = fired.filter((r) => r.severity === "approval").every((r) => /^(destructive-over-100|exceeds-5x-median)$/.test(r.name));
+    if (relaxable) {
+      decision = "allow";
+      fired.push({ name: "learned-allow", severity: "allow", detail: "matched an operator-accepted allow rule for this request shape" });
+    }
+  }
+  const required = requiredApprovals({
+    rows: count,
+    reversibility,
+    oversightReducing: needsTwo && effect.oversight.length > 0,
+    twoPersonRowThreshold: ctx.twoPersonRowThreshold
+  });
+  const enforce = ctx.mode !== "shadow";
+  return {
+    decision: enforce ? decision : "allow",
+    wouldDecision: decision,
+    firedRules: fired,
+    requiredApprovals: needsTwo ? Math.max(2, required) : required,
+    reversibility,
+    convertToHold,
+    tier: decision === "approval" ? "T3" : "T1",
+    leases: decision === "block" ? [] : leases,
+    ledgerEntry
+  };
+}
+
+// src/receipts.ts
+var GENESIS_RECEIPT = "0".repeat(64);
+function buildReceipt(input, prevReceiptHash = GENESIS_RECEIPT) {
+  return { version: 1, oversightCatalog: OVERSIGHT_CATALOG_VERSION, prevReceiptHash, ...input };
+}
+function receiptPayload(r) {
+  return canonicalJson(r);
+}
+function receiptHash(r) {
+  return sha256Hex(receiptPayload(r));
+}
+function signReceipt(r, signer) {
+  return { receipt: r, hash: receiptHash(r), signature: signer.sign(receiptPayload(r)), publicKey: signer.publicKey, alg: signer.alg };
+}
+function verifyReceipts(list, verify) {
+  let prev = GENESIS_RECEIPT;
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (s.receipt.prevReceiptHash !== prev) return { ok: false, checked: i, brokenAt: { index: i, reason: "chain broken (prevReceiptHash mismatch)" } };
+    if (receiptHash(s.receipt) !== s.hash) return { ok: false, checked: i, brokenAt: { index: i, reason: "receipt contents changed after signing" } };
+    if (!verify(receiptPayload(s.receipt), s.signature, s.publicKey)) return { ok: false, checked: i, brokenAt: { index: i, reason: "bad signature" } };
+    prev = s.hash;
+  }
+  return { ok: true, checked: list.length };
+}
+
+// src/revert.ts
+function planRevert(writes, taskId, current) {
+  const mine = writes.filter((w) => w.taskId === taskId).sort((a, b) => a.at - b.at);
+  const firstBefore = /* @__PURE__ */ new Map();
+  const lastAfter = /* @__PURE__ */ new Map();
+  for (const w of mine) {
+    if (!firstBefore.has(w.key)) firstBefore.set(w.key, w);
+    lastAfter.set(w.key, w);
+  }
+  const plan = { restore: [], skip: [] };
+  for (const [key, first] of firstBefore) {
+    const last = lastAfter.get(key);
+    const now = current(key);
+    if (now !== last.afterHash) {
+      plan.skip.push({
+        key,
+        reason: last.afterHash === null ? "the key was re-used after this task deleted it" : "the row was changed after this task (later edit preserved)"
+      });
+      continue;
+    }
+    if (first.before === null) plan.restore.push({ key, before: null, action: "delete" });
+    else if (last.afterHash === null) plan.restore.push({ key, before: first.before, action: "reinsert" });
+    else plan.restore.push({ key, before: first.before, action: "overwrite" });
+  }
+  return plan;
+}
+var touches = (a, b) => a === b || a.startsWith(`${b}:`) || b.startsWith(`${a}:`);
+function dependents(nodes, rootId) {
+  const byTime = [...nodes].sort((a, b) => a.at - b.at);
+  const root = byTime.find((n) => n.id === rootId);
+  if (!root) return [];
+  const tainted = new Set(root.writes);
+  const out = [];
+  for (const n of byTime) {
+    if (n.at <= root.at || n.id === rootId) continue;
+    if (n.reads.some((r) => [...tainted].some((t) => touches(r, t)))) {
+      out.push(n);
+      n.writes.forEach((w) => tainted.add(w));
+    }
+  }
+  return out;
+}
+
+// src/artifacts.ts
+function artifactsToRevoke(artifacts, taskId) {
+  return artifacts.filter((a) => a.taskId === taskId && a.durableAccess && !a.promotedBy && !a.revokedAt);
+}
+function staleArtifacts(artifacts, now, maxAgeMs = 24 * 3600 * 1e3) {
+  return artifacts.filter((a) => a.durableAccess && !a.promotedBy && !a.revokedAt && now - a.createdAt > maxAgeMs);
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  CLEAN_TAINT,
+  DEFAULT_BUDGETS,
   DEFAULT_THRESHOLDS,
   GENESIS_HASH,
+  GENESIS_RECEIPT,
+  OVERSIGHT_CATALOG_VERSION,
   POLICY,
   SqlGuardError,
+  absorbTaint,
+  acquireLease,
+  admit,
   applyClassifier,
   approvalState,
+  artifactsToRevoke,
   auditBody,
+  bindEffect,
+  buildReceipt,
   canonicalJson,
   checkApprover,
+  checkBinding,
+  checkBudgets,
+  checkReadVersion,
   classToSeverity,
+  classifyOversight,
   computeAuditHash,
+  connectorFidelity,
   decide,
+  dependents,
+  effectHash,
   evaluateRules,
+  extractClaims,
+  fidelityScore,
   guardPredicate,
   hashOf,
   heuristicVerdict,
   isSafeIdentifier,
+  lethalTrifecta,
   leveled,
   median,
   moreSevere,
   nextLink,
+  planRevert,
+  primaryCount,
+  priorDenial,
+  receiptHash,
+  receiptPayload,
+  reconcileAll,
+  reconcileClaim,
+  requestFingerprint,
   requiredApprovals,
   reviewerStats,
   severityRank,
   sha256Hex,
+  signReceipt,
+  staleArtifacts,
   tokenize,
-  verifyChain
+  trustLevel,
+  verifyChain,
+  verifyReceipts
 });
