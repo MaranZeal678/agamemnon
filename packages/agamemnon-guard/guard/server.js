@@ -11,20 +11,40 @@
 
 /*
  * The guard server. The bank app talks ONLY to this; it holds no data itself.
- * localhost-only, permissive CORS (both apps are local Electron clients).
+ * Bound to 127.0.0.1. Hardened (Gen-2):
+ *  - CORS is no longer "*": only the local Electron apps (Origin "null" from
+ *    file://) and localhost pages may call it, so a website open in a browser
+ *    cannot drive the guard through the user's machine;
+ *  - the operator controls (/reset, /enforcement) require the admin token that
+ *    the guard app generates on first launch and hands only to its own window.
  */
 "use strict";
 const http = require("http");
+const crypto = require("crypto");
 
-function send(res, code, body) {
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // curl, Node, same-process callers
+  if (origin === "null") return true; // file:// pages in the local Electron apps
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+}
+
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a || ""));
+  const y = Buffer.from(String(b || ""));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+function sendJson(res, code, body, origin) {
   const json = JSON.stringify(body);
-  res.writeHead(code, {
+  const headers = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Agamemnon-Admin",
     "Cache-Control": "no-store",
-  });
+    Vary: "Origin",
+  };
+  if (origin && isAllowedOrigin(origin)) headers["Access-Control-Allow-Origin"] = origin;
+  res.writeHead(code, headers);
   res.end(json);
 }
 function readBody(req) {
@@ -35,12 +55,18 @@ function readBody(req) {
   });
 }
 
-function createGuardServer(store, port) {
+function createGuardServer(store, port, opts = {}) {
   const started = Date.now();
+  const adminToken = opts.adminToken || null;
   const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, "http://x");
     const p = u.pathname;
-    if (req.method === "OPTIONS") return send(res, 204, {});
+    const origin = req.headers.origin;
+    const reply = (code, body) => sendJson(res, code, body, origin);
+    if (!isAllowedOrigin(origin)) return reply(403, { error: "origin not allowed" });
+    if (req.method === "OPTIONS") return reply(204, {});
+    const isAdmin = () => !!adminToken && safeEqual(req.headers["x-agamemnon-admin"], adminToken);
+    const send = (_res, code, body) => reply(code, body); // keep the handlers below unchanged
     try {
       if (p === "/health") return send(res, 200, { ok: true, service: "agamemnon-guard", records: store.counts().total, enforcement: store.settings().enforcement, uptimeMs: Date.now() - started });
       if (p === "/counts") return send(res, 200, store.counts());
@@ -61,16 +87,19 @@ function createGuardServer(store, port) {
         if (p === "/approve") return send(res, 200, store.approve(body.actionId, body.note));
         if (p === "/deny") return send(res, 200, store.deny(body.actionId, body.note));
         if (p === "/undo") return send(res, 200, store.undo(body.actionId));
-        if (p === "/enforcement") { store.setEnforcement(body.on); return send(res, 200, store.settings()); }
-        if (p === "/reset") { store.resetDemo(); return send(res, 200, { ok: true }); }
+        if (p === "/enforcement" || p === "/reset") {
+          if (!isAdmin()) return send(res, 401, { error: "operator control requires the guard admin token (X-Agamemnon-Admin)" });
+          if (p === "/enforcement") { store.setEnforcement(body.on); return send(res, 200, store.settings()); }
+          store.resetDemo(); return send(res, 200, { ok: true });
+        }
       }
       send(res, 404, { error: "not found" });
     } catch (e) {
-      send(res, 400, { error: e && e.message ? e.message : String(e) });
+      reply(400, { error: e && e.message ? e.message : String(e) });
     }
   });
   server.listen(port, "127.0.0.1");
   return server;
 }
 
-module.exports = { createGuardServer };
+module.exports = { createGuardServer, isAllowedOrigin };

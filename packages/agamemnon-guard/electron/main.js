@@ -11,18 +11,34 @@
 
 const { app, BrowserWindow, Menu, shell } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 const { Store } = require("../guard/store");
 const { createGuardServer } = require("../guard/server");
 
 const PORT = 7420;
-let store, server, win;
+let store, server, win, adminToken;
+
+/** The guard's operator token: generated once, kept in userData (0600). */
+function loadAdminToken() {
+  const file = path.join(app.getPath("userData"), "admin-token");
+  try {
+    const t = fs.readFileSync(file, "utf8").trim();
+    if (t) return t;
+  } catch (_) { /* first launch */ }
+  const t = crypto.randomBytes(24).toString("hex");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, t, { mode: 0o600 });
+  return t;
+}
 
 function boot() {
+  adminToken = loadAdminToken();
   const dataFile = path.join(app.getPath("userData"), "records.json");
   store = new Store(dataFile);
   store.init();
   try {
-    server = createGuardServer(store, PORT);
+    server = createGuardServer(store, PORT, { adminToken });
     server.on("error", (e) => console.error("[guard] server error:", e.message));
     console.log(`[guard] Agamemnon guard listening on http://127.0.0.1:${PORT}`);
   } catch (e) {
@@ -37,7 +53,9 @@ function createWindow() {
     trafficLightPosition: { x: 14, y: 16 }, show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  win.loadFile(path.join(__dirname, "..", "app", "index.html"));
+  // The admin token reaches ONLY this window (via the URL fragment, which is
+  // never sent over the network); the renderer moves it to memory and clears it.
+  win.loadFile(path.join(__dirname, "..", "app", "index.html"), { hash: `admin=${adminToken}` });
   win.once("ready-to-show", () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
 }

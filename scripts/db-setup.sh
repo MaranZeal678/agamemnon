@@ -28,16 +28,21 @@ upsert_role() {  # $1 = role name, $2 = password
 upsert_role "$MERIDIAN_DB_USER"  "$MERIDIAN_DB_PASSWORD"
 upsert_role "$AGAMEMNON_DB_USER" "$AGAMEMNON_DB_PASSWORD"
 
-# Grants: both roles own their access to the meridian db. meridian_app is the
-# unprotected agent's credential; agamemnon_svc is the one only Agamemnon holds.
+# Grants. meridian_app is the application's own credential (and the
+# UNPROTECTED agent's in Act 1). agamemnon_svc is the one only Agamemnon holds,
+# and it is deliberately narrow: schema USAGE only, no default privileges, and
+# CREATEROLE so it can mint a per-request role for each execution. Its table
+# privileges are granted explicitly — allowlisted tables only — in db-seed.sh.
 psql_admin -d "$MERIDIAN_DB" \
   -v mu="$MERIDIAN_DB_USER" -v au="$AGAMEMNON_DB_USER" <<'SQL'
 GRANT ALL ON SCHEMA public TO :"mu";
-GRANT ALL ON SCHEMA public TO :"au";
+REVOKE ALL ON SCHEMA public FROM :"au";
+GRANT USAGE ON SCHEMA public TO :"au";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO :"mu";
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO :"au";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO :"mu";
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO :"au";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM :"au";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM :"au";
+ALTER ROLE :"au" CREATEROLE NOSUPERUSER NOCREATEDB NOREPLICATION NOBYPASSRLS;
 SQL
 
 echo "Database and roles ready."

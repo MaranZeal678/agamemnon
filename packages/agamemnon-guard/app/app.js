@@ -16,8 +16,18 @@
   var openIds = {};       // expanded cards
   var sigPending = "", sigFeed = "", sigAudit = "", sigTiles = "";
 
+  // Operator-control token handed to this window by the main process via the
+  // URL fragment. Moved into memory and wiped from the address immediately.
+  var ADMIN = (function () {
+    var m = /(?:^|[#&])admin=([0-9a-f]+)/.exec(location.hash || "");
+    if (m) { try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {} }
+    return m ? m[1] : "";
+  })();
+
   function api(path, body) {
-    var opt = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
+    var headers = { "Content-Type": "application/json" };
+    if (ADMIN) headers["X-Agamemnon-Admin"] = ADMIN;
+    var opt = body ? { method: "POST", headers: headers, body: JSON.stringify(body) } : {};
     return fetch(API + path, opt).then(function (r) { return r.json(); });
   }
   function fmt(n) { return Number(n || 0).toLocaleString(); }

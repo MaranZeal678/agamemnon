@@ -1,0 +1,27 @@
+# Agamemnon — CI: typecheck and unit-test the kernel and the Convex policy layer.
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck kernel
+        run: npx tsc -p packages/kernel/tsconfig.json
+      - name: Kernel tests
+        run: npx vitest run
+        working-directory: packages/kernel
+      - name: Policy tests
+        run: npx vitest run
+        working-directory: packages/agamemnon
+      - name: Guard bundles are up to date
+        run: |
+          npm run build:guards -w @agamemnon/kernel
+          git diff --exit-code -- packages/agamemnon-guard/guard/kernel.cjs packages/halcyon/guard/kernel.cjs

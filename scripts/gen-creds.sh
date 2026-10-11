@@ -29,10 +29,31 @@ ensure_url() {  # $1 = url var, $2 = user var, $3 = pw var
   fi
 }
 
+ensure_token() {  # $1 = var name, $2 = prefix. Appends the var if .env lacks it.
+  local name="$1" prefix="$2" val="${!1:-}"
+  if [[ -z "$val" ]]; then
+    local tok; tok="${prefix}$(openssl rand -hex 24)"
+    if grep -q "^${name}=" "$ENV"; then
+      perl -pi -e "s|^${name}=\$|${name}=${tok}|" "$ENV"
+    else
+      printf '%s=%s\n' "$name" "$tok" >> "$ENV"
+    fi
+    changed=1
+    export "$name"="$tok"
+  fi
+}
+
 ensure_pw MERIDIAN_DB_PASSWORD
 ensure_pw AGAMEMNON_DB_PASSWORD
 ensure_url MERIDIAN_DATABASE_URL  MERIDIAN_DB_USER  MERIDIAN_DB_PASSWORD
 ensure_url AGAMEMNON_DATABASE_URL AGAMEMNON_DB_USER AGAMEMNON_DB_PASSWORD
+
+# Principal tokens (Gen-2): the agent's bearer token and one per console
+# operator. Only their SHA-256 hashes are ever sent to Convex.
+ensure_token AGAMEMNON_AGENT_TOKEN agm_agent_
+ensure_token AGAMEMNON_OPERATOR_ALICE_TOKEN agm_op_
+ensure_token AGAMEMNON_OPERATOR_BOB_TOKEN agm_op_
+ensure_token AGAMEMNON_OPERATOR_MARAN_TOKEN agm_op_
 
 if [[ "$changed" -eq 1 ]]; then
   echo "Generated missing credentials into .env (values not shown)."

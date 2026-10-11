@@ -12,7 +12,7 @@ CONVEX := cd $(AGA) && PATH="$(NODE24):$$PATH" CONVEX_AGENT_MODE=anonymous npx c
 .DEFAULT_GOAL := help
 .PHONY: help gen-creds db-setup seed-db agent-env setup convex-dev convex-env \
         seed-policy provision agent-protected agent-unprotected reset verify \
-        test psql
+        test psql principals verify-e2e
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -38,14 +38,17 @@ setup: gen-creds db-setup seed-db agent-env ## Full local setup (everything exce
 convex-dev: ## Start the local Convex backend in watch mode (leave running)
 	@$(CONVEX) dev
 
-provision: convex-env seed-policy ## Push env + seed policy into the running Convex
+provision: convex-env seed-policy principals ## Push env + seed policy + principals into the running Convex
 	@echo "Convex provisioned."
 
 convex-env: ## Push AGAMEMNON_DATABASE_URL + Nebius config into Convex (no values printed)
 	@bash scripts/convex-env.sh
 
 seed-policy: ## Seed the policy allowlist + agent 30-day median into Convex
-	@$(CONVEX) run internal.core.seed '{"agent":"dispatch-copilot","median30d":1210,"allowlist":["loads","bookings"],"perRunDestructiveRowBudget":5000}'
+	@$(CONVEX) run internal.core.seed '{"agent":"dispatch-copilot","median30d":1210,"allowlist":["loads","bookings"],"perRunDestructiveRowBudget":5000,"twoPersonRowThreshold":2000,"classifierDomain":"a freight operations system"}'
+
+principals: ## Register the agent + console operators in Convex (token hashes only)
+	@bash scripts/provision-principals.sh
 
 ## ── Demo services + acts ────────────────────────────────────────────────────
 up: ## Start all demo services (Convex + Meridian web + console), idempotent
@@ -86,8 +89,12 @@ reset: ## Restore a cold demo state (re-seed Postgres; clear Convex runs)
 verify: ## Show the most recent actions recorded in Convex
 	@$(CONVEX) data actions | tail -8
 
-test: ## Run the policy engine unit tests
+test: ## Run the kernel + policy unit tests
+	@cd packages/kernel && npx vitest run
 	@cd $(AGA) && npx vitest run
+
+verify-e2e: ## Live end-to-end hardening check (needs convex-dev running + provision)
+	@cd $(AGA) && PATH="$(NODE24):$$PATH" node tests/e2e-hardening.mjs
 
 psql: ## Open psql on the meridian database as the app role
 	@bash -c 'source scripts/lib.sh && load_env && psql_app'

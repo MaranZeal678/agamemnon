@@ -10,97 +10,36 @@
  */
 
 /*
- * Agamemnon policy engine — PURE, DETERMINISTIC, NO MODEL CALLS.
- * Ported verbatim from packages/agamemnon/convex/policy.ts.
- * The model advises; the rules decide. The classifier may only ESCALATE severity.
+ * Agamemnon policy engine for this app — a thin wrapper over the SHARED kernel
+ * (packages/kernel, bundled into ./kernel.cjs). Convex, the broker and every
+ * desktop guard now run one implementation; only the thresholds differ.
+ * Thresholds sized for the Northwind 50,000-record back office.
+ * The model advises; the rules decide. The classifier may only ESCALATE.
  */
 "use strict";
+const kernel = require("./kernel.cjs");
 
-const POLICY = {
+const POLICY = Object.freeze({
   DESTRUCTIVE_ROW_HARD_CAP: 2500, // destructive + > this  → block
   MEDIAN_BLOCK_MULTIPLIER: 20, //     > this × median      → block
   MEDIAN_APPROVAL_MULTIPLIER: 5, //   > this × median      → approval
   BLAST_RADIUS_APPROVAL_THRESHOLD: 0.9,
   DESTRUCTIVE_APPROVAL_ROW_THRESHOLD: 100,
   PER_RUN_DESTRUCTIVE_ROW_BUDGET: 2500,
-};
+});
 
-const SEV = { allow: 0, approval: 1, block: 2 };
-const moreSevere = (a, b) => (SEV[a] >= SEV[b] ? a : b);
-
-/** Evaluate the deterministic rules. No classifier here. */
 function evaluateRules(action, ctx) {
-  const fired = [];
-  const rows = action.estimatedRows;
-  const median = ctx.agentMedian > 0 ? ctx.agentMedian : 1;
-  const ratio = rows / median;
-  const fire = (name, severity, detail) => fired.push({ name, severity, detail });
-
-  if (action.destructive) {
-    if (rows > POLICY.DESTRUCTIVE_ROW_HARD_CAP)
-      fire("destructive-over-hard-cap", "block",
-        `${rows.toLocaleString()} records exceeds the ${POLICY.DESTRUCTIVE_ROW_HARD_CAP.toLocaleString()}-record destructive hard cap`);
-
-    if (rows > POLICY.MEDIAN_BLOCK_MULTIPLIER * median)
-      fire("exceeds-20x-median", "block",
-        `${rows.toLocaleString()} is ${ratio.toFixed(1)}× the operator's median of ${median.toLocaleString()} (limit 20×)`);
-    else if (rows > POLICY.MEDIAN_APPROVAL_MULTIPLIER * median)
-      fire("exceeds-5x-median", "approval",
-        `${rows.toLocaleString()} is ${ratio.toFixed(1)}× the operator's median (>5× needs approval)`);
-
-    if (ctx.perRunDestructiveRowsUsed + rows > POLICY.PER_RUN_DESTRUCTIVE_ROW_BUDGET)
-      fire("destructive-budget-exhausted", "block",
-        `this session has spent ${ctx.perRunDestructiveRowsUsed.toLocaleString()} destructive records; +${rows.toLocaleString()} exceeds the ${POLICY.PER_RUN_DESTRUCTIVE_ROW_BUDGET.toLocaleString()} budget`);
-
-    if (rows > POLICY.DESTRUCTIVE_APPROVAL_ROW_THRESHOLD)
-      fire("destructive-over-100", "approval",
-        `${rows.toLocaleString()} destructive records (>${POLICY.DESTRUCTIVE_APPROVAL_ROW_THRESHOLD}) requires approval by default`);
-  }
-
-  const decision = fired.reduce((acc, r) => moreSevere(acc, r.severity), "allow");
-  return { decision, firedRules: fired, ratioToMedian: ratio };
+  return kernel.evaluateRules({ tool: "delete", target: action.target || "records", ...action }, ctx, { thresholds: POLICY });
 }
-
-/** Layer the classifier's advice — it may only push severity UP. */
 function applyClassifier(base, verdict) {
-  if (!verdict) return { ...base, classifierEscalated: false };
-  const fired = [...base.firedRules];
-  let decision = base.decision;
-  const before = decision;
-
-  if (verdict.blast_radius >= POLICY.BLAST_RADIUS_APPROVAL_THRESHOLD) {
-    fired.push({ name: "blast-radius-high", severity: "approval",
-      detail: `classifier blast radius ${verdict.blast_radius.toFixed(2)} ≥ ${POLICY.BLAST_RADIUS_APPROVAL_THRESHOLD} (${verdict.source})` });
-    decision = moreSevere(decision, "approval");
-  }
-  const cs = classToSeverity(verdict.class);
-  if (SEV[cs] > SEV[decision]) {
-    fired.push({ name: `classifier-${verdict.class}`, severity: cs,
-      detail: `classifier rated "${verdict.class}" (${verdict.source}): ${verdict.rationale}` });
-    decision = cs;
-  }
-  return { decision, firedRules: fired, ratioToMedian: base.ratioToMedian, classifierEscalated: SEV[decision] > SEV[before] };
+  return kernel.applyClassifier(base, verdict, { thresholds: POLICY });
 }
-
-function classToSeverity(cls) {
-  switch (String(cls).toLowerCase()) {
-    case "catastrophic": return "block";
-    case "elevated": case "high": return "approval";
-    default: return "allow";
-  }
-}
-
 function decide(action, ctx, verdict = null) {
-  return applyClassifier(evaluateRules(action, ctx), verdict);
+  return kernel.decide({ tool: "delete", target: action.target || "records", ...action }, ctx, verdict, { thresholds: POLICY });
 }
-
 // Deterministic heuristic classifier (offline). Same shape as production.
 function classify(matching, total, destructive, target) {
-  const frac = total > 0 ? matching / total : matching > 0 ? 1 : 0;
-  const blast = Math.max(0, Math.min(1, frac));
-  let cls = !destructive ? "benign" : blast >= 0.9 ? "catastrophic" : blast >= 0.2 || matching > 1000 ? "elevated" : "benign";
-  return { class: cls, blast_radius: blast, source: "heuristic",
-    rationale: `matches ${matching.toLocaleString()} of ${total.toLocaleString()} records (${(blast * 100).toFixed(1)}% of ${target})` };
+  return kernel.heuristicVerdict({ matchingRows: matching, totalRows: total, destructive, target });
 }
 
 module.exports = { POLICY, decide, evaluateRules, applyClassifier, classify };

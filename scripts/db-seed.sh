@@ -13,11 +13,14 @@ psql_app -q -f "$DB_DIR/seed.sql"
 psql_app -q -f "$DB_DIR/agent_runs.sql"
 psql_app -q -f "$DB_DIR/migration.sql"
 
-# agamemnon_svc must be able to snapshot (SELECT) and execute (DELETE/INSERT)
-# on tables that meridian_app just created.
+# agamemnon_svc gets exactly the verbs it hands to per-request roles — on the
+# ALLOWLISTED tables only, WITH GRANT OPTION so it can delegate them to a role
+# that exists for one transaction. No TRUNCATE, no TRIGGER, no REFERENCES, no
+# access to any other table. (This replaces the old GRANT ALL ON ALL TABLES.)
 psql_admin -d "$MERIDIAN_DB" -v au="$AGAMEMNON_DB_USER" <<'SQL'
-GRANT ALL ON ALL TABLES    IN SCHEMA public TO :"au";
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO :"au";
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM :"au";
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM :"au";
+GRANT SELECT, INSERT, DELETE ON loads, bookings TO :"au" WITH GRANT OPTION;
 SQL
 
 active=$(psql_app -tAc "SELECT count(*) FROM loads WHERE status='active'")

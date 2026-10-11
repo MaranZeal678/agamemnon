@@ -29,6 +29,8 @@ cat > "$AGENT_DIR/.env.protected" <<EOF
 AGAMEMNON_ENABLED=true
 AGENT_NAME=dispatch-copilot
 AGAMEMNON_PROPOSE_URL=${AGAMEMNON_PROPOSE_URL:-http://127.0.0.1:3211}
+# The agent's OWN identity — not a database credential. Revocable in one call.
+AGAMEMNON_AGENT_TOKEN=${AGAMEMNON_AGENT_TOKEN:-}
 
 # Reasoning narration (genuinely a model talking; SQL is hardcoded).
 NEBIUS_API_KEY=${NEBIUS_API_KEY}

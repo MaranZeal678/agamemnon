@@ -14,9 +14,9 @@ export CONVEX_AGENT_MODE=anonymous
 
 echo "→ re-seeding Postgres…"
 bash "$ROOT_DIR/scripts/db-seed.sh" >/dev/null
-echo "→ clearing Convex operational state…"
+echo "→ clearing Convex operational state (the audit chain is kept)…"
 ( cd "$ROOT_DIR/packages/agamemnon" && npx convex run internal.core.resetDemoState '{}' >/dev/null )
 echo "→ re-seeding policy + agent median…"
 ( cd "$ROOT_DIR/packages/agamemnon" && npx convex run internal.core.seed \
-    '{"agent":"dispatch-copilot","median30d":1210,"allowlist":["loads","bookings"],"perRunDestructiveRowBudget":5000}' >/dev/null )
+    '{"agent":"dispatch-copilot","median30d":1210,"allowlist":["loads","bookings"],"perRunDestructiveRowBudget":5000,"twoPersonRowThreshold":2000,"classifierDomain":"a freight operations system"}' >/dev/null )
 echo "✓ cold demo state restored."

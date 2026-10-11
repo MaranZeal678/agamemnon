@@ -20,6 +20,15 @@ Then open `.env` and paste your Nebius key into `NEBIUS_API_KEY=`.
 Do not paste the key into chat, a terminal command, or anywhere else.
 `.env` is gitignored; nothing in this repo ever prints or commits it.
 
+> **Turn on Zero Data Retention for your Nebius org.** Token Factory keeps
+> prompts and outputs by default (to speed up inference), and public endpoints
+> are routed globally. Agamemnon already sends the classifier structured facts
+> only — table name, row counts, and the predicate's *shape* with every literal
+> replaced by `$1, $2, …` — never row values or the agent's prose. Enabling ZDR
+> (org setting) and a region-pinned dedicated endpoint closes the rest. With
+> `CLASSIFIER_ENABLED=false` nothing is sent anywhere; the deterministic
+> heuristic decides alone.
+
 ## 2. Database credentials — generated, not chosen
 
 ```bash
@@ -33,6 +42,17 @@ Two roles are created:
   (Act 1) holds this. It can delete anything, which is the point.
 - `agamemnon_svc` — the credential **only Agamemnon holds**. In Acts 2–3 it is
   set as a Convex environment variable; the agent's env has no DB password at all.
+  It is deliberately narrow: `SELECT, INSERT, DELETE` on the allowlisted tables
+  only (no `TRUNCATE`, no other tables), plus `CREATEROLE`. Every execution runs
+  under a **per-request role** minted inside the transaction with exactly the
+  verbs that action needs, then revoked and dropped before commit.
+
+`make gen-creds` also generates the **principal tokens**: the agent's own bearer
+token (`AGAMEMNON_AGENT_TOKEN`, written into the protected agent env) and one
+token per console operator (`alice`, `bob` — approvers; `maran` — admin and the
+agent's owner, so `maran` can never approve the agent's requests). `make
+provision` sends only their SHA-256 hashes to Convex. Sign in to the console by
+pasting an operator token.
 
 ## 3. Seed the demo world
 
