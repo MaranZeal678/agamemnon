@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Push Agamemnon's runtime secrets/config from .env into the LOCAL Convex
 # deployment's environment. Values are never printed. The Postgres URL lives
 # ONLY here (and in .env) — never in the agent's environment.

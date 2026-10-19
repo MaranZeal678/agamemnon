@@ -2,6 +2,9 @@
   "name": "@agamemnon/eval",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "repository": { "type": "git", "url": "git+https://github.com/MaranZeal678/agamemnon.git", "directory": "packages/agamemnon/eval" },
   "type": "module",
   "scripts": {
     "generate": "tsx generate.ts",

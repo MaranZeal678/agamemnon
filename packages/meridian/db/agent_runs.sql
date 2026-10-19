@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Elamaran Elangovan
 -- Dispatch Copilot's own run history, shown on Meridian's "AI Operations" page.
 -- 30 nightly runs, each deleting ~1,210 orphans, so the agent has a believable
 -- 30-day median of ≈ 1,210 rows before the demo starts. (The policy engine's

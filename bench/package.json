@@ -1,6 +1,9 @@
 {
   "name": "@agamemnon/bench",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "repository": { "type": "git", "url": "git+https://github.com/MaranZeal678/agamemnon.git", "directory": "bench" },
   "type": "module",
   "description": "Agent Incident Replay Bench — real agent incidents rebuilt as runnable scenarios scoring guards on effects."
 }

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Restore a cold demo state:
 #   1. Re-seed Postgres (412k loads back, migration re-applied)
 #   2. Clear Convex operational tables (runs/actions/audit/undo/approvals)

@@ -2,6 +2,9 @@
   "name": "@agamemnon/broker",
   "version": "0.2.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "repository": { "type": "git", "url": "git+https://github.com/MaranZeal678/agamemnon.git", "directory": "packages/broker" },
   "type": "module",
   "description": "Agamemnon Gen-2 broker — the sole credential holder that previews, binds, admits, executes and verifies every agent effect.",
   "exports": {

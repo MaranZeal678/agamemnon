@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Generate the agent's two environment files from the root .env:
 #   .env.unprotected — holds Meridian's DB credential (Act 1)
 #   .env.protected   — NO DB credential; writes go through Agamemnon (Act 2/3)

@@ -1,6 +1,9 @@
 {
   "name": "agamemnon-monorepo",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "repository": { "type": "git", "url": "git+https://github.com/MaranZeal678/agamemnon.git" },
   "version": "0.1.0",
   "description": "Agamemnon \u2014 the watcher at the gate. Monorepo: the product + the fictional customer.",
   "workspaces": [
