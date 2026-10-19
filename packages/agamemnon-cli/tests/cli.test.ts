@@ -105,3 +105,79 @@ try {
     }
   });
 });
+
+describe("agamemnon pending / approve / deny", () => {
+  async function fakeBroker() {
+    const http = await import("node:http");
+    const calls: Array<{ method: string; path: string; auth: string; body: any }> = [];
+    const server = http.createServer(async (req, res) => {
+      let raw = "";
+      for await (const c of req) raw += c;
+      calls.push({ method: req.method!, path: req.url!, auth: String(req.headers.authorization ?? ""), body: raw ? JSON.parse(raw) : undefined });
+      const send = (code: number, body: unknown) => (res.writeHead(code, { "content-type": "application/json" }), res.end(JSON.stringify(body)));
+      if (req.headers.authorization !== "Bearer op-tok") return send(401, { error: "missing or unknown token" });
+      if (req.url!.startsWith("/v1/console/state"))
+        return send(200, {
+          effects: [
+            { id: "eff_1", status: "awaiting_approval", operation: "fs.delete", resource: "workspace:default", env: "dev", summary: "delete tests/x.test.ts", reversibility: "undo", fidelity: "exact", agent: "coder", requiredApprovals: 2, approvals: [{ approver: "bob", decision: "approve" }], oversight: ["deletes-tests"], firedRules: [{ name: "oversight-reducing", detail: "deletes a test file" }] },
+            { id: "eff_2", status: "executed", operation: "postgres.sql", resource: "connection:app", summary: "update 3 rows" },
+          ],
+        });
+      if (req.url === "/v1/effects/eff_1/approve") return send(200, { id: "eff_1", status: "awaiting_approval", approvalState: "pending" });
+      if (req.url === "/v1/effects/eff_1/deny") return send(200, { id: "eff_1", status: "denied", approvalState: "denied" });
+      return send(404, { error: "not found" });
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    return { url: `http://127.0.0.1:${(server.address() as any).port}`, calls, close: () => new Promise<void>((r) => server.close(() => r())) };
+  }
+
+  it("lists only parked effects, with what an approver needs to decide", async () => {
+    const b = await fakeBroker();
+    try {
+      const q = quiet();
+      expect(await run(["pending", "--broker", b.url, "--token", "op-tok"], q.print)).toBe(0);
+      const out = q.out.join("\n");
+      expect(out).toContain("1 effect waiting for approval");
+      expect(out).toContain("eff_1");
+      expect(out).toContain("approvals 1/2");
+      expect(out).toContain("reduces oversight");
+      expect(out).not.toContain("eff_2");
+      const j = quiet();
+      await run(["pending", "--broker", b.url, "--token", "op-tok", "--json"], j.print);
+      expect(JSON.parse(j.out[0]).map((e: any) => e.id)).toEqual(["eff_1"]);
+    } finally {
+      await b.close();
+    }
+  });
+
+  it("approve and deny post the decision with a note, as the operator", async () => {
+    const b = await fakeBroker();
+    try {
+      const q = quiet();
+      expect(await run(["approve", "eff_1", "--note", "checked the preview", "--broker", b.url, "--token", "op-tok"], q.print)).toBe(0);
+      expect(q.out.join("\n")).toContain("still needs another independent approver");
+      expect(await run(["deny", "eff_1", "--broker", b.url, "--token", "op-tok"], q.print)).toBe(0);
+      expect(q.out.join("\n")).toContain("eff_1 denied");
+      const posts = b.calls.filter((c) => c.method === "POST");
+      expect(posts.map((c) => [c.path, c.body.note])).toEqual([["/v1/effects/eff_1/approve", "checked the preview"], ["/v1/effects/eff_1/deny", ""]]);
+      expect(posts.every((c) => c.auth === "Bearer op-tok")).toBe(true);
+    } finally {
+      await b.close();
+    }
+  });
+
+  it("refuses without an operator token or with a malformed id, and surfaces broker errors", async () => {
+    const b = await fakeBroker();
+    const saved = process.env.AGAMEMNON_OPERATOR_TOKEN;
+    delete process.env.AGAMEMNON_OPERATOR_TOKEN;
+    try {
+      await expect(run(["pending", "--broker", b.url], quiet().print)).rejects.toThrow(/operator token is required/);
+      await expect(run(["approve", "../admin/mode", "--broker", b.url, "--token", "op-tok"], quiet().print)).rejects.toThrow(/usage: agamemnon approve/);
+      await expect(run(["approve", "eff_1", "--broker", b.url, "--token", "wrong"], quiet().print)).rejects.toThrow(/unknown token/);
+      expect(b.calls.filter((c) => c.method === "POST" && c.auth === "Bearer op-tok")).toHaveLength(0);
+    } finally {
+      if (saved !== undefined) process.env.AGAMEMNON_OPERATOR_TOKEN = saved;
+      await b.close();
+    }
+  });
+});

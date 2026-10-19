@@ -11,14 +11,16 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeBroker, pgAvailable, resetTestDb, P } from "./helpers.ts";
-import { consolePage, approvePage } from "../src/pages.ts";
+import { homePage, approvePage } from "../src/pages.ts";
 
-describe("console pages", () => {
-  it("their inline scripts are valid JavaScript", () => {
-    for (const html of [consolePage(), approvePage("eff_123")]) {
-      const js = /<script>([\s\S]*)<\/script>/.exec(html)![1];
-      expect(() => new Function(js)).not.toThrow();
-    }
+describe("broker pages", () => {
+  it("the approval page's inline script is valid JavaScript", () => {
+    const js = /<script>([\s\S]*)<\/script>/.exec(approvePage("eff_123"))![1];
+    expect(() => new Function(js)).not.toThrow();
+  });
+  it("the home page is static and points operators at approvals", () => {
+    expect(homePage()).not.toContain("<script>");
+    expect(homePage()).toContain("/approve/");
   });
 });
 
@@ -75,7 +77,7 @@ const PG = await pgAvailable();
     expect(() => b.engine.requestPolicyChange(P(b, "alice"), { mode: "enforce" })).toThrow(/only admins/);
   });
 
-  it("evidence pack annotates every signed receipt with the controls it supports (informational)", async () => {
+  it("evidence pack exports every signed receipt; extensions add control annotations", async () => {
     const b = makeBroker();
     const t = b.engine.startTask(P(b, "cleanup-bot"), {});
     const v = await b.engine.propose(P(b, "cleanup-bot"), { taskId: t.id, operation: "postgres.sql", params: sql("DELETE FROM orders WHERE status = 'stale'") });
@@ -83,8 +85,11 @@ const PG = await pgAvailable();
     const lines = b.engine.evidence().map((l) => JSON.parse(l));
     expect(lines.length).toBeGreaterThan(0);
     const last = lines[lines.length - 1];
-    expect(last.informational).toBe(true);
-    expect(last.controls["EU AI Act Art. 14 (human oversight)"]).toMatch(/approved by alice/);
+    expect(last.controls).toBeUndefined();
+    expect(last.receipt.receipt.approvers.map((a: any) => a.id)).toContain("alice");
+    b.engine.use({ name: "controls", evidenceControls: (r) => ({ approvedBy: r.approvers.map((a: any) => a.id).join(",") }) });
+    const annotated = b.engine.evidence().map((l) => JSON.parse(l));
+    expect(annotated[annotated.length - 1]).toMatchObject({ informational: true, controls: { approvedBy: "alice" } });
     expect(b.engine.verifyReceipts().ok).toBe(true);
   });
 

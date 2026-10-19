@@ -24,6 +24,9 @@ import { StripeConnector } from "./connectors/stripe.ts";
 import { EmailConnector } from "./connectors/email.ts";
 import { MonitoringConnector } from "./connectors/monitoring.ts";
 import type { Connector } from "./connectors/types.ts";
+import type { BrokerExtension } from "./extensions.ts";
+
+export { loadExtensions, type BrokerExtension, type PageContext, type RouteContext } from "./extensions.ts";
 
 export interface Broker {
   store: Store;
@@ -37,13 +40,14 @@ export function defaultConnectors(): Connector[] {
 }
 
 /** Open (or create) a broker over a data directory. */
-export function openBroker(opts: { dataDir?: string; dbPath?: string; useKeychain?: boolean; connectors?: Connector[]; engine?: EngineOptions } = {}): Broker {
+export function openBroker(opts: { dataDir?: string; dbPath?: string; useKeychain?: boolean; connectors?: Connector[]; engine?: EngineOptions; extensions?: BrokerExtension[] } = {}): Broker {
   const dataDir = opts.dataDir ?? process.env.AGAMEMNON_DATA_DIR ?? join(homedir(), ".agamemnon");
   mkdirSync(dataDir, { recursive: true });
   const store = new Store(opts.dbPath ?? join(dataDir, "broker.db"));
   const { key, source } = loadMasterKey(dataDir, { useKeychain: opts.useKeychain ?? process.env.AGAMEMNON_NO_KEYCHAIN !== "1" });
   const vault = new Vault(store, key, source);
   const engine = new Engine(store, vault, opts.connectors ?? defaultConnectors(), opts.engine);
+  for (const ext of opts.extensions ?? []) engine.use(ext);
   return { store, vault, engine, dataDir };
 }
 
