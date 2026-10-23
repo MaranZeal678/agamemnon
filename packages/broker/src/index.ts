@@ -25,6 +25,8 @@ import { EmailConnector } from "./connectors/email.ts";
 import { MonitoringConnector } from "./connectors/monitoring.ts";
 import type { Connector } from "./connectors/types.ts";
 
+export { hashToken, newToken } from "./server.ts";
+
 export interface Broker {
   store: Store;
   vault: Vault;

@@ -185,3 +185,20 @@ describe("break-glass and metrics", () => {
     expect(m.oversightEffects).toBe(1);
   });
 });
+
+describe("ending a task", () => {
+  it("cancels its requests still waiting on a human; they can no longer be approved", async () => {
+    const { writeFileSync, existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const b = makeBroker();
+    writeFileSync(join(b.dir, "workspace/tests/y.test.ts"), "it('y', () => {})\n");
+    const t = b.engine.startTask(P(b, "coder"), {});
+    const v = await b.engine.propose(P(b, "coder"), { taskId: t.id, operation: "fs.delete", params: { path: "tests/y.test.ts" } });
+    expect(v.status).toBe("awaiting_approval");
+    const end = await b.engine.endTask(P(b, "coder"), t.id);
+    expect(end.cancelled).toBe(1);
+    expect(b.engine.view(v.id).status).toBe("cancelled");
+    await expect(b.engine.decide(P(b, "alice"), v.id, "approve")).rejects.toThrow(/cancelled/);
+    expect(existsSync(join(b.dir, "workspace/tests/y.test.ts"))).toBe(true);
+  });
+});

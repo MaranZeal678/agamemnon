@@ -345,6 +345,8 @@ export class Engine {
     if (!row) throw new ConnectorError("not-found", "effect not found");
     if (row.status !== "awaiting_approval") throw new ConnectorError("not-pending", `effect is ${row.status}`);
     const task = this.store.task(row.taskId)!;
+    // The agent (or sandbox) that asked is gone: approving would act for no one.
+    if (task.status !== "open") throw new ConnectorError("task-ended", `task ${task.id} has ended — this request can no longer be approved`);
     const agentRow = this.store.principal(row.agent);
     const subject = { requester: { kind: "agent" as const, id: row.agent }, launcher: task.rootOwner ?? agentRow?.owner ?? undefined, required: row.requiredApprovals ?? 1 };
     const check = checkApprover({ kind: "human", id: operator.name }, subject);
@@ -587,10 +589,16 @@ export class Engine {
     const task = this.store.task(taskId);
     if (!task) throw new ConnectorError("unknown-task", "task not found");
     const revoked = await this.revokeArtifacts(artifactsToRevoke(this.store.artifacts(), taskId), `task ${taskId} ended`);
+    // Requests still waiting on a human die with the task (holds keep their window: they were already admitted).
+    const voided = this.store.effectsByTask(taskId).filter((e) => e.status === "awaiting_approval");
+    for (const e of voided) {
+      this.store.updateEffect(e.id, { status: "cancelled" });
+      this.issueReceipt(e.id, "cancelled");
+    }
     this.store.releaseLeases(taskId);
     this.store.endTask(taskId);
-    this.store.audit({ kind: "task-end", actor: by.name, taskId, detail: `task ended; ${revoked} agent-created durable artifact(s) revoked` });
-    return { revoked };
+    this.store.audit({ kind: "task-end", actor: by.name, taskId, detail: `task ended; ${revoked} agent-created durable artifact(s) revoked; ${voided.length} pending request(s) cancelled` });
+    return { revoked, cancelled: voided.length };
   }
 
   async revokeArtifacts(list: Array<{ id: string; kind: string; system: string }>, reason: string): Promise<number> {
