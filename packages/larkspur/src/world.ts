@@ -107,15 +107,19 @@ async function seed() {
       CREATE TABLE loyalty_points (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, merchant_id text NOT NULL, customer_id bigint NOT NULL, points int NOT NULL, reason text);
       INSERT INTO merchants VALUES ${m};
       INSERT INTO customers (merchant_id, email, name)
-        SELECT (ARRAY['bloom-botanicals','northpeak-outfitters','copperline-coffee'])[(g % 3) + 1], 'shopper' || g || '@mail.example', 'Shopper ' || g
-        FROM generate_series(1, 3600) g;
+        SELECT (ARRAY['bloom-botanicals','northpeak-outfitters','copperline-coffee'])[(g % 3) + 1],
+          lower(f) || '.' || lower(l) || (g % 97) || '@' || (ARRAY['gmail.example','fastmail.example','proton.example','icloud.example','outlook.example'])[1 + g % 5],
+          f || ' ' || l
+        FROM generate_series(1, 3600) g,
+          LATERAL (SELECT (ARRAY['Ava','Noah','Mia','Liam','Zoe','Ethan','Priyanka','Mateo','Hana','Oliver','Amara','Lucas','Sofia','Kenji','Isla','Omar','Chloe','Diego','Nadia','Felix','Leila','Samuel','Yara','Theo'])[1 + g % 24] AS f,
+                          (ARRAY['Nguyen','Okoro','Schmidt','Garcia','Kowalski','Haddad','Tanaka','Murphy','Silva','Andersson','Patel','Rossi','Dubois','Kim','Novak','Mensah','Larsen','Costa','Ibrahim','Walsh','Fischer','Moreau','Reyes','Bauer','Sato','Quinn','Adeyemi','Horvat','Lindqvist','Barros','Chen'])[1 + (g * 7) % 31] AS l) n;
       INSERT INTO orders (merchant_id, customer_id, status, amount_cents, payment_intent, created_at)
         SELECT c.merchant_id, c.id,
           -- (g / 3), not g: customer ids already tie g % 3 to the merchant
           CASE WHEN g % 20 = 1 THEN 'refunded' WHEN g % 7 = 0 THEN 'abandoned' WHEN (g / 3) % 3 = 0 THEN 'paid' ELSE 'shipped' END,
           ((1200 + (g * 37) % 9000) * CASE c.merchant_id WHEN 'northpeak-outfitters' THEN 3.2 WHEN 'copperline-coffee' THEN 0.45 ELSE 1 END)::int,
           CASE WHEN g % 7 = 0 THEN NULL ELSE 'pi_' || g END,
-          now() - ((g % 90) || ' days')::interval - ((g % 1440) || ' minutes')::interval
+          now() - (((g * 7919) % 129600) || ' minutes')::interval - (((g * 31) % 60) || ' seconds')::interval
         FROM generate_series(1, 18000) g JOIN customers c ON c.id = (g % 3600) + 1
         -- uneven stores: Northpeak sells fewer, pricier things; Copperline is small
         WHERE NOT (c.merchant_id = 'northpeak-outfitters' AND g % 5 = 0)

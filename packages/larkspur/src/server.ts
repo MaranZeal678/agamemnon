@@ -74,6 +74,69 @@ function platform() {
   };
 }
 
+/** Shorten big arrays and strings so the dashboard can show what an agent sent without shipping it all. */
+function trim(v: unknown, depth = 0): unknown {
+  if (typeof v === "string") return v.length > 1500 ? `${v.slice(0, 1500)}…` : v;
+  if (Array.isArray(v)) {
+    const head = v.slice(0, 5).map((x) => trim(x, depth + 1));
+    return v.length > 5 ? [...head, `… ${v.length - 5} more`] : head;
+  }
+  if (v && typeof v === "object" && depth < 6) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, trim(x, depth + 1)]));
+  return v;
+}
+
+/** Larkspur's own back-office queries (its admin reads its own database directly). */
+async function orders(u: URL) {
+  const merchant = u.searchParams.get("merchant") ?? "";
+  const status = u.searchParams.get("status") ?? "";
+  const q = (u.searchParams.get("q") ?? "").trim();
+  const page = Math.max(0, Number(u.searchParams.get("page") ?? 0) || 0);
+  const where: string[] = [];
+  const args: unknown[] = [];
+  if (merchant) where.push(`o.merchant_id = $${args.push(merchant)}`);
+  if (status) where.push(`o.status = $${args.push(status)}`);
+  if (q) where.push(`(o.id::text = $${args.push(q.replace(/^#/, ""))} OR c.email ILIKE $${args.push(`%${q}%`)} OR c.name ILIKE $${args.length} OR o.payment_intent = $${args.push(q)})`);
+  const w = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const [rows, total] = await Promise.all([
+    world.pool.query(
+      `SELECT o.id, o.merchant_id, m.name AS merchant, c.name AS customer, c.email, o.status, o.amount_cents, o.payment_intent, o.note, o.created_at
+       FROM orders o JOIN customers c ON c.id = o.customer_id JOIN merchants m ON m.id = o.merchant_id ${w}
+       ORDER BY o.created_at DESC LIMIT 50 OFFSET ${page * 50}`,
+      args,
+    ),
+    world.pool.query(`SELECT count(*)::int AS n FROM orders o JOIN customers c ON c.id = o.customer_id ${w}`, args),
+  ]);
+  return { rows: rows.rows, total: total.rows[0].n, page };
+}
+
+async function customers(u: URL) {
+  const merchant = u.searchParams.get("merchant") ?? "";
+  const q = (u.searchParams.get("q") ?? "").trim();
+  const args: unknown[] = [];
+  const where: string[] = [];
+  if (merchant) where.push(`c.merchant_id = $${args.push(merchant)}`);
+  if (q) where.push(`(c.email ILIKE $${args.push(`%${q}%`)} OR c.name ILIKE $${args.length})`);
+  const w = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const r = await world.pool.query(
+    `SELECT c.id, c.name, c.email, m.name AS merchant, count(o.id)::int AS orders, coalesce(sum(o.amount_cents) FILTER (WHERE o.status IN ('paid','shipped')), 0)::bigint AS spent_cents,
+       max(o.created_at) AS last_order, coalesce((SELECT sum(points) FROM loyalty_points l WHERE l.customer_id = c.id), 0)::int AS points
+     FROM customers c JOIN merchants m ON m.id = c.merchant_id LEFT JOIN orders o ON o.customer_id = c.id ${w}
+     GROUP BY c.id, m.name ORDER BY spent_cents DESC LIMIT 50`,
+    args,
+  );
+  const total = await world.pool.query(`SELECT count(*)::int AS n FROM customers c ${w}`, args);
+  return { rows: r.rows, total: total.rows[0].n };
+}
+
+async function recentOrders() {
+  return (
+    await world.pool.query(
+      `SELECT o.id, m.name AS merchant, c.name AS customer, o.status, o.amount_cents, o.created_at FROM orders o
+       JOIN customers c ON c.id = o.customer_id JOIN merchants m ON m.id = o.merchant_id ORDER BY o.created_at DESC LIMIT 8`,
+    )
+  ).rows;
+}
+
 function agamemnon() {
   const { store, engine } = world.broker;
   const effects = store.recentEffects(80).map((e) => {
@@ -86,6 +149,9 @@ function agamemnon() {
       createdAt: e.createdAt,
       env: e.effect?.request?.target?.env ?? null,
       tenant: e.effect?.request?.target?.tenant ?? null,
+      taskId: e.taskId,
+      params: trim(e.effect?.request?.params ?? null),
+      sample: trim(e.effect?.preview?.sample ?? null),
       approvals: store.approvals(e.id).map((a) => ({ approver: a.approver, decision: a.decision, at: a.at })),
     };
   });
@@ -106,6 +172,7 @@ async function state() {
   return {
     epoch: world.epoch,
     company: await company(),
+    recentOrders: await recentOrders(),
     platform: platform(),
     agamemnon: agamemnon(),
     scenes: SCENES.map((s) => ({ id: s.id, group: s.group, title: s.title, actor: s.actor, intent: s.intent, risk: s.risk, code: s.code ?? null, expect: s.expect, last: results.get(s.id) ?? null })),
@@ -148,6 +215,8 @@ const server = http.createServer(async (req, res) => {
         body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
       }
       if (req.method === "GET" && url.pathname === "/api/state") return send(200, await state());
+      if (req.method === "GET" && url.pathname === "/api/orders") return send(200, await orders(url));
+      if (req.method === "GET" && url.pathname === "/api/customers") return send(200, await customers(url));
       const run = /^\/api\/scenes\/([\w-]+)\/run$/.exec(url.pathname);
       if (req.method === "POST" && run) {
         const scene = SCENES.find((s) => s.id === run[1]);
@@ -189,7 +258,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404);
       return res.end("not found");
     }
-    res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
+    res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream", "cache-control": "no-cache" });
     res.end(readFileSync(file));
   } catch (e: any) {
     send(500, { error: e?.message ?? String(e) });
