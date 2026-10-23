@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Agamemnon — write-path guardrail. Owns the data, enforces policy on every delete.",
   "productName": "Agamemnon",
-  "author": "SquareShift",
-  "license": "MIT",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "main": "electron/main.js",
   "scripts": {

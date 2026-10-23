@@ -4,7 +4,7 @@
  *
  * Proprietary and confidential. No licence is granted to use, copy, modify,
  * distribute, or run this software beyond local evaluation of this repository
- * as published. See LICENSE at the repository root.
+ * as published. See LICENSE in this package.
  *
  * ref: AGMN-BOZW-F6BTKX-X3LAO
  */

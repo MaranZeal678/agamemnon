@@ -1,15 +1,19 @@
-Agamemnon — AI-agent write-path guardian
-Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
+Agamemnon
+Copyright 2026 Elamaran Elangovan
 
-This software is proprietary. It is published for demonstration and portfolio
-review only, and no licence to use, copy, modify, or distribute it is granted.
-See LICENSE at the repository root for the full terms.
+This product is licensed under the Apache License, Version 2.0. See LICENSE
+for the full terms.
 
-Every source file in this repository carries a copyright notice and a reference
-identifier. Those notices must not be removed or altered.
+The following packages are proprietary and are NOT covered by the Apache
+License. Each carries its own LICENSE file with its terms:
 
-Third-party components (Convex, Nebius, React, Vite, Electron and others) remain
-subject to their own licences and are not covered by this notice.
+  packages/agamemnon-guard
+  packages/halcyon
+  packages/desktop
+  packages/northwind-bank
+  packages/console
+  packages/agamemnon/console
 
-Contact: elango@squareshift.co
-Reference: AGMN-BOZW-F6BTKX-X3LAO
+Third-party components remain subject to their own licences.
+
+Contact: contact@elamaran.co

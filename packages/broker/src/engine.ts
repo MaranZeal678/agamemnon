@@ -1,13 +1,5 @@
-/*
- * Agamemnon — AI-agent write-path guardian
- * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
- *
- * Proprietary and confidential. No licence is granted to use, copy, modify,
- * distribute, or run this software beyond local evaluation of this repository
- * as published. See LICENSE at the repository root.
- *
- * ref: AGMN-BOZW-F6BTKX-X3LAO
- */
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Elamaran Elangovan
 
 import { createHmac, randomBytes } from "node:crypto";
 import {
@@ -47,6 +39,7 @@ import {
 import { ConnectorError, type Connector, type ConnectorContext, type Prepared } from "./connectors/types.ts";
 import type { EffectRow, PrincipalRow, Store, TaskRow } from "./store.ts";
 import type { Vault } from "./vault.ts";
+import { validateExtension, type BrokerExtension } from "./extensions.ts";
 
 /**
  * The broker engine: Preview → Bind → Admit by reversibility → Execute →
@@ -103,6 +96,7 @@ const id = (prefix: string) => `${prefix}_${randomBytes(8).toString("hex")}`;
 
 export class Engine {
   readonly connectors = new Map<string, Connector>();
+  readonly extensions: BrokerExtension[] = [];
   private readonly opts: Required<Omit<EngineOptions, "webhook" | "publicUrl" | "levels">> & Pick<EngineOptions, "webhook" | "publicUrl" | "levels">;
 
   readonly store: Store;
@@ -124,6 +118,14 @@ export class Engine {
       publicUrl: opts.publicUrl,
       levels: opts.levels ?? store.getSetting("levels", {}),
     };
+  }
+
+  /** Register a broker extension (see extensions.ts). Extensions add; they never override. */
+  use(ext: BrokerExtension): this {
+    const e = validateExtension(ext);
+    if (this.extensions.some((x) => x.name === e.name)) throw new Error(`extension "${e.name}" is already registered`);
+    this.extensions.push(e);
+    return this;
   }
 
   get mode() {
@@ -888,23 +890,16 @@ export class Engine {
 
   // ── evidence pack ──────────────────────────────────────────────────────────
   /**
-   * Signed receipts annotated with the controls they evidence. The mapping is
-   * INFORMATIONAL — it is not a certification or legal advice.
+   * Every signed receipt, one JSON line each. Extensions may attach `controls`
+   * annotations (for example a compliance mapping); those are INFORMATIONAL —
+   * not a certification or legal advice.
    */
   evidence(): string[] {
+    const annotators = this.extensions.filter((x) => x.evidenceControls);
     return this.store.receipts().map((s: any) => {
-      const r = s.receipt;
-      const human = r.approvers.length > 0;
-      return JSON.stringify({
-        receipt: s,
-        controls: {
-          "EU AI Act Art. 12 (record-keeping)": "automatically generated, hash-chained event record",
-          "EU AI Act Art. 14 (human oversight)": human ? `approved by ${r.approvers.map((a: any) => a.id).join(", ")} before execution` : r.decision === "allow" ? "admitted by deterministic policy; human could reverse" : `decision: ${r.decision}`,
-          "SOC 2 CC8.1 (change management)": human ? "change authorised by an independent approver bound to the measured effect" : "change admitted under pre-approved policy",
-          "AIUC-1 logging / oversight / unauthorised actions": `outcome ${r.observed.outcome}; fidelity ${r.verification.fidelity ?? "n/a"}; claims ${r.verification.claims.map((c: any) => `${c.type}:${c.status}`).join(",") || "none"}`,
-        },
-        informational: true,
-      });
+      if (!annotators.length) return JSON.stringify({ receipt: s });
+      const controls = Object.assign({}, ...annotators.map((x) => x.evidenceControls!(s.receipt)));
+      return JSON.stringify({ receipt: s, controls, informational: true });
     });
   }
 

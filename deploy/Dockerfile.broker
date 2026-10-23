@@ -1,4 +1,6 @@
-# Agamemnon broker — Copyright (c) 2026 Elamaran Elangovan. All rights reserved. ref: AGMN-BOZW-F6BTKX-X3LAO
+# Agamemnon broker
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Runs the Gen-2 broker on Node 24 (native TypeScript stripping, node:sqlite — no build step).
 FROM node:24-slim
 WORKDIR /app

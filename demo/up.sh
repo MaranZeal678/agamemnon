@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Start every demo service (idempotent). Safe to run repeatedly.
 #   - Convex local backend (anonymous, Node 24) : 3210/3211
 #   - Meridian API + dispatch web              : 8787 / 5173

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Shared helpers. Loads .env WITHOUT printing any value.
 set -euo pipefail
 

@@ -1,13 +1,5 @@
-/*
- * Agamemnon — AI-agent write-path guardian
- * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
- *
- * Proprietary and confidential. No licence is granted to use, copy, modify,
- * distribute, or run this software beyond local evaluation of this repository
- * as published. See LICENSE at the repository root.
- *
- * ref: AGMN-BOZW-F6BTKX-X3LAO
- */
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Elamaran Elangovan
 
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +16,9 @@ import { StripeConnector } from "./connectors/stripe.ts";
 import { EmailConnector } from "./connectors/email.ts";
 import { MonitoringConnector } from "./connectors/monitoring.ts";
 import type { Connector } from "./connectors/types.ts";
+import type { BrokerExtension } from "./extensions.ts";
+
+export { loadExtensions, type BrokerExtension, type PageContext, type RouteContext } from "./extensions.ts";
 
 export interface Broker {
   store: Store;
@@ -37,13 +32,14 @@ export function defaultConnectors(): Connector[] {
 }
 
 /** Open (or create) a broker over a data directory. */
-export function openBroker(opts: { dataDir?: string; dbPath?: string; useKeychain?: boolean; connectors?: Connector[]; engine?: EngineOptions } = {}): Broker {
+export function openBroker(opts: { dataDir?: string; dbPath?: string; useKeychain?: boolean; connectors?: Connector[]; engine?: EngineOptions; extensions?: BrokerExtension[] } = {}): Broker {
   const dataDir = opts.dataDir ?? process.env.AGAMEMNON_DATA_DIR ?? join(homedir(), ".agamemnon");
   mkdirSync(dataDir, { recursive: true });
   const store = new Store(opts.dbPath ?? join(dataDir, "broker.db"));
   const { key, source } = loadMasterKey(dataDir, { useKeychain: opts.useKeychain ?? process.env.AGAMEMNON_NO_KEYCHAIN !== "1" });
   const vault = new Vault(store, key, source);
   const engine = new Engine(store, vault, opts.connectors ?? defaultConnectors(), opts.engine);
+  for (const ext of opts.extensions ?? []) engine.use(ext);
   return { store, vault, engine, dataDir };
 }
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Create the meridian database and the two application roles on the local
 # Homebrew Postgres. Idempotent. Requires that the current OS user is a
 # Postgres superuser (verified: maran is). Never prints passwords.

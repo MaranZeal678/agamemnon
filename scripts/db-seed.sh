@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Build the demo world from a clean slate: schema → seed → agent history →
 # the breaking migration. Then grant Agamemnon's service role access to the
 # freshly created tables. Fast: 412k rows via generate_series.

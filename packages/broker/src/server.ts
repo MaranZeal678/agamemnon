@@ -1,13 +1,5 @@
-/*
- * Agamemnon — AI-agent write-path guardian
- * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
- *
- * Proprietary and confidential. No licence is granted to use, copy, modify,
- * distribute, or run this software beyond local evaluation of this repository
- * as published. See LICENSE at the repository root.
- *
- * ref: AGMN-BOZW-F6BTKX-X3LAO
- */
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Elamaran Elangovan
 
 import http from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -15,7 +7,7 @@ import { sha256Hex } from "@agamemnon/kernel";
 import { ConnectorError } from "./connectors/types.ts";
 import type { Engine } from "./engine.ts";
 import type { PrincipalRow } from "./store.ts";
-import { consolePage, approvePage } from "./pages.ts";
+import { homePage, approvePage } from "./pages.ts";
 
 /**
  * The broker's HTTP surface.
@@ -104,7 +96,10 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
         const v = store.verifyAudit();
         return send(200, { ok: true, service: "agamemnon-broker", mode: engine.mode, connectors: [...engine.connectors.keys()], vaultKeySource: engine.vault.source, auditChain: v.ok ? `verified (${v.checked})` : `BROKEN at ${v.brokenAt?.seq}` });
       }
-      if (path === "/" || path === "/console") return send(200, consolePage(), "text/html; charset=utf-8");
+      if (path === "/" || path === "/console") {
+        const page = engine.extensions.map((x) => x.pages?.[path as "/" | "/console"]).find(Boolean);
+        return send(200, page ? page({ publicUrl: opts.publicUrl }) : homePage(), "text/html; charset=utf-8");
+      }
       if (path.startsWith("/approve/")) return send(200, approvePage(path.slice("/approve/".length)), "text/html; charset=utf-8");
 
       const me = auth(req);
@@ -241,6 +236,11 @@ export function createServer(engine: Engine, opts: ServerOptions = {}) {
         store.resetContradictions(mm[1]);
         store.audit({ kind: "trust", actor: me.name, detail: `${me.name} reinstated ${mm[1]} (contradiction count reset)` });
         return send(200, { ok: true });
+      }
+
+      // ── extensions (after every operator route; /v1/admin/ stays core-only) ──
+      if (!path.startsWith("/v1/admin/")) {
+        for (const x of engine.extensions) if (x.routes && (await x.routes({ req, method: req.method ?? "GET", path, url, body, me, isAdmin, engine, send }))) return;
       }
 
       // ── admin ─────────────────────────────────────────────────────────────

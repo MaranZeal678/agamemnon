@@ -1,13 +1,5 @@
-/*
- * Agamemnon — AI-agent write-path guardian
- * Copyright (c) 2026 Elamaran Elangovan. All rights reserved.
- *
- * Proprietary and confidential. No licence is granted to use, copy, modify,
- * distribute, or run this software beyond local evaluation of this repository
- * as published. See LICENSE at the repository root.
- *
- * ref: AGMN-BOZW-F6BTKX-X3LAO
- */
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Elamaran Elangovan
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, chmodSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
@@ -27,6 +19,7 @@ import { checkMigration } from "./migration.ts";
  *   agamemnon harden-db       database-native row caps + timeouts (prints SQL; --apply)
  *   agamemnon check-migration <file.sql> [--simulate URL]   CI-friendly (exit 1 on errors)
  *   agamemnon receipts verify <file>                         verify signed effect receipts offline
+ *   agamemnon pending | approve <id> | deny <id>             decide parked effects from a terminal
  *   agamemnon admin principal|target|secret …                broker administration
  */
 
@@ -311,6 +304,57 @@ function cmdReceipts(args: Args, print = console.log): number {
   return v.ok ? 0 : 1;
 }
 
+// ── approvals ────────────────────────────────────────────────────────────────
+function operator(args: Args) {
+  const url = String(args.broker ?? process.env.AGAMEMNON_BROKER_URL ?? "http://127.0.0.1:7700");
+  const token = String(args.token ?? process.env.AGAMEMNON_OPERATOR_TOKEN ?? "");
+  if (!token) throw new Error("an operator token is required: --token T or AGAMEMNON_OPERATOR_TOKEN");
+  return { url, token };
+}
+
+async function cmdPending(args: Args, print = console.log): Promise<number> {
+  const { url, token } = operator(args);
+  const s = await broker(url, token, "/v1/console/state?limit=500");
+  const pending = (s.effects as any[]).filter((e) => e.status === "awaiting_approval");
+  if (args.json) {
+    print(JSON.stringify(pending, null, 2));
+    return 0;
+  }
+  if (!pending.length) {
+    print(c.green("No effects are waiting for approval."));
+    return 0;
+  }
+  print(c.bold(`${pending.length} effect${pending.length === 1 ? "" : "s"} waiting for approval`));
+  for (const e of pending) {
+    const got = (e.approvals ?? []).filter((a: any) => a.decision === "approve").length;
+    print("");
+    print(`  ${c.bold(e.id)}  ${e.operation} · ${e.resource}${e.env ? ` (${e.env})` : ""}`);
+    print(`    ${e.summary}`);
+    print(c.dim(`    ${e.reversibility ?? "unknown"} · ${e.fidelity ?? "?"} preview · requested by ${e.agent} · approvals ${got}/${e.requiredApprovals ?? "?"}${e.oversight?.length ? ` · ${c.yellow("reduces oversight")}` : ""}`));
+    for (const r of e.firedRules ?? []) print(c.dim(`    - ${r.name}: ${r.detail ?? ""}`));
+  }
+  print("");
+  print(c.dim("  agamemnon approve <id> [--note …]   ·   agamemnon deny <id> [--note …]"));
+  return 0;
+}
+
+async function cmdDecide(decision: "approve" | "deny", args: Args, print = console.log): Promise<number> {
+  const id = String(args._[1] ?? "");
+  if (!/^[\w-]+$/.test(id)) throw new Error(`usage: agamemnon ${decision} <effect id> [--note "why"]`);
+  const { url, token } = operator(args);
+  const r = await broker(url, token, `/v1/effects/${id}/${decision}`, { note: typeof args.note === "string" ? args.note : "" });
+  if (args.json) {
+    print(JSON.stringify(r, null, 2));
+    return 0;
+  }
+  const state = r.approvalState ?? r.status;
+  if (decision === "deny") print(c.red(`✗ ${id} denied`));
+  else if (state === "pending") print(c.yellow(`… ${id}: your approval is recorded; it still needs another independent approver`));
+  else print(c.green(`✓ ${id} approved → ${r.status}`));
+  if (r.error) print(c.red(`  ${r.error}`));
+  return 0;
+}
+
 // ── admin ────────────────────────────────────────────────────────────────────
 async function cmdAdmin(args: Args, print = console.log): Promise<number> {
   const url = String(args.broker ?? process.env.AGAMEMNON_BROKER_URL ?? "http://127.0.0.1:7700");
@@ -357,6 +401,11 @@ export async function run(argv: string[], print = console.log): Promise<number> 
       return cmdCheckMigration(args, print);
     case "receipts":
       return cmdReceipts(args, print);
+    case "pending":
+      return cmdPending(args, print);
+    case "approve":
+    case "deny":
+      return cmdDecide(args._[0] as "approve" | "deny", args, print);
     case "admin":
       return cmdAdmin(args, print);
     default:
@@ -368,6 +417,9 @@ export async function run(argv: string[], print = console.log): Promise<number> 
   harden-db --tables a,b [--cap 5000] [--app-role R] [--broker-role agamemnon_svc] [--apply --url URL]
   check-migration <file.sql> [--simulate URL] [--fail-on warning] [--json]
   receipts verify <receipts.json>
+  pending [--broker URL] [--token OPERATOR_TOKEN] [--json]
+  approve <effect id> [--note "why"] [--json]
+  deny <effect id> [--note "why"] [--json]
   admin principal add | target | secret | mode`);
       return args._[0] ? 1 : 0;
   }

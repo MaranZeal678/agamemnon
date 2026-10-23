@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Elamaran Elangovan
 -- THE MIGRATION THAT BREAKS EVERYTHING.
 --
 -- A well-meaning platform team renames loads.status_code to loads.status for

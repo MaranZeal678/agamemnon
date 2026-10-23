@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Halcyon — a billing platform demo with an installable Agamemnon guard plugin and an embedded terminal.",
   "productName": "Halcyon",
-  "author": "SquareShift",
-  "license": "MIT",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
