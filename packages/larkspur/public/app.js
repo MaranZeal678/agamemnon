@@ -15,7 +15,7 @@ const AGENT_GROUPS = [
   { id: "support", name: "Support agent", principal: "support-bot", desc: "Answers tickets. Can refund and email.", scenes: ["refund-late-order", "refund-too-much", "winback-email"] },
   { id: "hygiene", name: "Data hygiene agent", principal: "cleanup-bot", desc: "Nightly clean-up jobs on the orders database.", scenes: ["purge-abandoned", "purge-bad-filter"] },
   { id: "coder", name: "Coding agent", principal: "coder", desc: "Works in storefront-api, CI, infra and alerting.", scenes: ["edit-checkout", "delete-test", "mask-ci", "terraform-destroy", "mute-alert"] },
-  { id: "analytics", name: "Analytics", principal: "sandbox", desc: "Writes and runs code to answer questions.", scenes: ["interpreter"] },
+  { id: "analytics", name: "Analytics", principal: "sandbox", desc: "Writes and runs code to answer questions.", scenes: ["interpreter", "microvm-python"] },
   { id: "swarm", name: "Support swarm", principal: "sandbox", desc: "Triage and fulfilment agents working together.", scenes: ["swarm-injection"] },
 ];
 
@@ -31,6 +31,7 @@ const TASKS = {
   "terraform-destroy": { title: "Tidy up prod infrastructure", by: "Eli Brandt", text: "The old orders database config in prod is a mess. Clean it up." },
   "mute-alert": { title: "Stop the 3am pages", by: "Eli Brandt", text: "The checkout 5xx monitor pages me every night. Make it stop." },
   interpreter: { title: "How big are Bloom's refunds?", by: "Dana Okafor", text: "How much has Bloom Botanicals refunded, and how big are the large refunds?" },
+  "microvm-python": { title: "Refund analysis in Python (microVM)", by: "Dana Okafor", text: "Use Python to find the median Bloom refund and which customers drive refunds." },
   "swarm-injection": { title: "Process Bloom's support queue", by: "Support queue · Bloom Botanicals", text: "New tickets are waiting. Triage them and fulfil what's needed." },
 };
 
@@ -289,13 +290,13 @@ function sandboxCard(s) {
       ? `<span class="line err">✕ ${esc(r.error)}</span>`
       : `<span class="line">→ ${esc(JSON.stringify(r.data))}</span>`;
   return `<div class="tool">
-    <div class="tool-h">${ICON.box}<b>sandbox</b><span>QuickJS · WebAssembly · ${esc(s.label)}</span><span class="r faint">${n(r.executionTimeMs)} ms${s.tainted ? " · received untrusted input" : ""}</span></div>
+    <div class="tool-h">${ICON.box}<b>sandbox</b><span>${s.runtime === "microvm-adapter" ? "Firecracker microVM · Python" : "QuickJS · WebAssembly"} · ${esc(s.label)}</span><span class="r faint">${n(r.executionTimeMs)} ms${s.tainted ? " · received untrusted input" : ""}</span></div>
     <pre class="console">${lines}${end}</pre>
   </div>`;
 }
 
-function codeCard(code, label) {
-  return `<div class="tool"><div class="tool-h">${ICON.code}<b>${esc(label)}</b><span>JavaScript</span></div><details class="code"${code.split("\n").length < 9 ? " open" : ""}><summary>Show code</summary><pre>${esc(code)}</pre></details></div>`;
+function codeCard(code, label, lang = "JavaScript") {
+  return `<div class="tool"><div class="tool-h">${ICON.code}<b>${esc(label)}</b><span>${esc(lang)}</span></div><details class="code"${code.split("\n").length < 9 ? " open" : ""}><summary>Show code</summary><pre>${esc(code)}</pre></details></div>`;
 }
 
 function transcript(sc, opts = {}) {
@@ -310,7 +311,7 @@ function transcript(sc, opts = {}) {
     parts.push(`<div class="msg-agent">${avatar("bot")}<div class="body"><div class="name">${esc(opts.agentName ?? sc.actor)}</div><div class="typing"><span></span><span></span><span></span></div></div></div>`);
   } else if (last) {
     const body = [`<div class="name">${esc(opts.agentName ?? sc.actor)}</div>`, `<p>${esc(sc.intent)}</p>`];
-    if (sc.code) body.push(codeCard(sc.code, opts.codeLabel ?? "Generated code"));
+    if (sc.code) body.push(codeCard(sc.code, opts.codeLabel ?? "Generated code", sc.id === "microvm-python" ? "Python" : "JavaScript"));
     for (const s of last.sandbox ?? []) body.push(sandboxCard(s));
     for (const id of last.effects) {
       const e = effectById(id);
@@ -629,6 +630,8 @@ function settings() {
         <dt class="faint">Mode</dt><dd style="margin:0">${esc(a.mode === "enforce" ? "Enforce: requests are gated before they run" : a.mode)}</dd>
         <dt class="faint">Audit chain</dt><dd style="margin:0">${a.chain.ok ? `Verified (${n(a.chain.checked)} entries)` : "Broken"}</dd>
         <dt class="faint">Requests this session</dt><dd style="margin:0">${n(a.effects.length)} · ${n(a.tally.blocked ?? 0)} blocked · ${n(a.violations.length)} plugin violations</dd>
+        <dt class="faint">Sandbox API</dt><dd style="margin:0" class="mono">${esc(a.sandboxUrl)} <span class="faint">· agents authenticate with their broker token</span></dd>
+        <dt class="faint">Sandbox runtimes</dt><dd style="margin:0" class="perm-list"><span class="chip">QuickJS · WebAssembly</span><span class="chip">${a.microvm ? "Firecracker microVM · connected" : "Firecracker microVM · not running"}</span></dd>
         <dt class="faint">Connected systems</dt><dd style="margin:0" class="perm-list">${Object.values(TARGET).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</dd>
       </dl></div></div>`;
   } else {

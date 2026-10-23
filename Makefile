@@ -12,7 +12,7 @@ CONVEX := cd $(AGA) && PATH="$(NODE24):$$PATH" CONVEX_AGENT_MODE=anonymous npx c
 .DEFAULT_GOAL := help
 .PHONY: help gen-creds db-setup seed-db agent-env setup convex-dev convex-env \
         seed-policy provision agent-protected agent-unprotected reset verify \
-        test psql principals verify-e2e broker test-all bench guards larkspur larkspur-verify
+        test psql principals verify-e2e broker test-all bench guards larkspur larkspur-verify vm-up vm-setup vmhost vm-check vm-down
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -102,11 +102,33 @@ psql: ## Open psql on the meridian database as the app role
 ## ── Gen 2: the effect-typed reference monitor ───────────────────────────────
 BROKER_NODE := PATH="$(NODE24):$$PATH" NODE_NO_WARNINGS=1 node
 
-larkspur: ## Larkspur demo dashboard (Gen 2 + mini-sandboxes) on http://127.0.0.1:5180 — needs local Postgres
-	@$(BROKER_NODE) packages/larkspur/src/server.ts
+larkspur: ## Larkspur demo dashboard (Gen 2 + mini-sandboxes) on http://127.0.0.1:5180 — needs local Postgres; uses microVMs if agm-kvm is up
+	@T=$$(limactl shell --workdir / $(VM) -- bash -c 'cat $$HOME/.agm-vmhost.token' 2>/dev/null); \
+	  AGAMEMNON_VMHOST=$${T:+127.0.0.1:7801} AGAMEMNON_VMHOST_TOKEN=$$T $(BROKER_NODE) packages/larkspur/src/server.ts
 
-larkspur-verify: ## Run every Larkspur scene against the real broker and check Agamemnon's decisions
-	@$(BROKER_NODE) packages/larkspur/src/verify.ts
+larkspur-verify: ## Run every Larkspur scene against the real broker and check Agamemnon's decisions (microVM scene if agm-kvm is up)
+	@T=$$(limactl shell --workdir / $(VM) -- bash -c 'cat $$HOME/.agm-vmhost.token' 2>/dev/null); \
+	  AGAMEMNON_VMHOST=$${T:+127.0.0.1:7801} AGAMEMNON_VMHOST_TOKEN=$$T $(BROKER_NODE) packages/larkspur/src/verify.ts
+
+VMHOST_DIR := packages/sandbox/vmhost
+VM := agm-kvm
+VMHOST_ENV = AGAMEMNON_VMHOST=127.0.0.1:7801 AGAMEMNON_VMHOST_TOKEN=$$(limactl shell --workdir / $(VM) -- bash -c 'cat $$HOME/.agm-vmhost.token' 2>/dev/null)
+
+vm-up: ## Boot the agm-kvm Lima VM (Linux + /dev/kvm via nested virtualization) — the microVM host
+	@limactl list -q | grep -qx $(VM) && limactl start $(VM) || limactl start --tty=false --name=$(VM) $(VMHOST_DIR)/lima.yaml
+
+vm-setup: ## Inside agm-kvm: fetch Firecracker + guest kernel/rootfs and build the read-only rootfs
+	@limactl shell --workdir / $(VM) -- bash $(CURDIR)/$(VMHOST_DIR)/setup-guest.sh
+
+vmhost: ## Run vmhost inside agm-kvm (Firecracker driver; reachable on the Mac at 127.0.0.1:7801)
+	@limactl shell --workdir / $(VM) -- python3 $(CURDIR)/$(VMHOST_DIR)/vmhost.py --listen 127.0.0.1:7801 --token-file '$$HOME/.agm-vmhost.token' \
+	  --firecracker '$$HOME/agm-vm/firecracker' --kernel '$$HOME/agm-vm/vmlinux' --rootfs '$$HOME/agm-vm/rootfs.ext4'
+
+vm-check: ## Boot real microVMs through vmhost and check every isolation property
+	@$(VMHOST_ENV) $(BROKER_NODE) packages/sandbox/scripts/vm-check.ts
+
+vm-down: ## Stop the agm-kvm VM
+	@limactl stop $(VM)
 
 broker: ## Run the Gen-2 broker (http://127.0.0.1:7700/console; first run writes an admin token to ~/.agamemnon)
 	@$(BROKER_NODE) packages/broker/src/main.ts

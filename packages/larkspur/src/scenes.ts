@@ -28,7 +28,7 @@ export interface SceneResult {
   effects: string[];
   /** Per-step statuses, compared against `expect`. */
   outcomes: string[];
-  sandbox?: Array<{ label: string; result: SandboxExecutionResult; tainted?: boolean }>;
+  sandbox?: Array<{ label: string; result: SandboxExecutionResult; tainted?: boolean; runtime?: string }>;
   notes?: string[];
 }
 
@@ -65,18 +65,18 @@ const pg = (sql: string) => ({ operation: "postgres.sql", params: { connection: 
 const pgRead = (sql: string) => ({ operation: "postgres.query", params: { connection: "larkspur", sql } });
 
 let seq = 0;
-async function sandboxRun(w: World, opts: { label: string; tenant: string; grants: CapabilityFlag[]; code: string; context?: Record<string, unknown>; allowedDomains?: string[]; timeoutMs?: number; maxMemoryMb?: number; keep?: boolean }) {
+async function sandboxRun(w: World, opts: { label: string; tenant: string; grants: CapabilityFlag[]; code: string; context?: Record<string, unknown>; allowedDomains?: string[]; timeoutMs?: number; maxMemoryMb?: number; keep?: boolean; runtime?: "quickjs-wasm" | "microvm-adapter" }) {
   const id = `${opts.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${++seq}`;
   await w.supervisor.spawnSandbox({
     id,
     tenantId: opts.tenant,
-    runtime: "quickjs-wasm",
+    runtime: opts.runtime ?? "quickjs-wasm",
     capabilities: { grants: opts.grants, allowedDomains: opts.allowedDomains, maxMemoryMb: opts.maxMemoryMb ?? 32, timeoutMs: opts.timeoutMs ?? 3000 },
   });
   const result = await w.supervisor.executeInSandbox(id, opts.code, opts.context ?? {});
   const tainted = w.supervisor.status(id).tainted;
   if (!opts.keep && w.supervisor.status(id).status !== "terminated") await w.supervisor.terminateSandbox(id);
-  return { id, result, tainted };
+  return { id, result, tainted, runtime: opts.runtime ?? "quickjs-wasm" };
 }
 
 const sbStatus = (r: SandboxExecutionResult) => (r.killed ? "killed" : r.success ? "ok" : "error");
@@ -126,6 +126,24 @@ const DISCOUNT = `// "Bulk Discounts" — installed by Bloom Botanicals, but it 
 const a = await db.update("orders", { note: "10% off — bulk discount" }, { merchant_id: "northpeak-outfitters", status: "paid" });
 const b = await db.insert("loyalty_points", { merchant_id: "northpeak-outfitters", customer_id: 4, points: 9999, reason: "planted" });
 return [a.status + " (" + a.firedRules.map((r) => r.name).join(", ") + ")", b.status + " (" + b.firedRules.map((r) => r.name).join(", ") + ")"];`;
+
+const MICROVM = `# "Which customers drive our refunds?" — Python, in a Firecracker microVM
+import socket, statistics
+from collections import Counter
+rows = db.select("orders", {"merchant_id": context["merchant"], "status": "refunded"})
+cents = [r["amount_cents"] for r in rows]
+print(f"sampled {len(rows)} refunded orders")
+try:  # the VM has no network device — prove it
+    socket.create_connection(("1.1.1.1", 443), timeout=1)
+    network = "reachable"
+except OSError as e:
+    network = f"none ({e.strerror})"
+return {
+    "refunds": len(cents),
+    "median_usd": round(statistics.median(cents) / 100, 2),
+    "top_refunders": [{"customer": c, "refunds": n} for c, n in Counter(r["customer_id"] for r in rows).most_common(3)],
+    "network_from_inside": network,
+}`;
 
 const RUNAWAY = `// A plugin with a bug: it never stops
 let i = 0;
@@ -343,6 +361,29 @@ export const SCENES: Scene[] = [
         outcomes: [r.result.success && sampled === 0 ? "empty" : sbStatus(r.result)],
         sandbox: [{ label: r.id, result: r.result }],
       };
+    },
+  },
+  {
+    id: "microvm-python",
+    group: "sandbox",
+    title: "Python analytics in a microVM",
+    actor: "analytics agent → Firecracker microVM",
+    intent: "Run Python against Bloom's refunds inside a hardware-isolated microVM.",
+    risk: "Arbitrary Python — native code, subprocesses, sockets — running next to production data.",
+    code: MICROVM,
+    expect: ["ok"],
+    async run(w) {
+      try {
+        const r = await sandboxRun(w, { label: "microvm", tenant: "bloom-botanicals", grants: ["READ_ONLY"], code: MICROVM, context: { merchant: "bloom-botanicals" }, runtime: "microvm-adapter", maxMemoryMb: 64, timeoutMs: 8000 });
+        return {
+          headline: "Booted a fresh Firecracker microVM (no network device, read-only root), ran the Python, and destroyed the VM. Its only way to the data was a broker read over vsock.",
+          effects: [],
+          outcomes: [sbStatus(r.result)],
+          sandbox: [{ label: r.id, result: r.result, runtime: r.runtime }],
+        };
+      } catch (e: any) {
+        return { headline: `The microVM host is not available: ${e?.message ?? e}. Start it with make vm-up && make vmhost.`, effects: [], outcomes: ["unavailable"] };
+      }
     },
   },
   {

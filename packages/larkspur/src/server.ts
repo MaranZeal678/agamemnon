@@ -28,6 +28,7 @@ import { SCENES, type SceneResult } from "./scenes.ts";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, "..", "public");
 const PORT = Number(process.env.LARKSPUR_PORT ?? process.env.PORT ?? 5180);
+const BUILD = Date.now().toString(36);
 
 let world: World = await bootWorld();
 let results = new Map<string, SceneResult & { at: number; error?: string }>();
@@ -160,6 +161,8 @@ function agamemnon() {
   return {
     mode: engine.mode,
     consoleUrl: world.consoleUrl,
+    sandboxUrl: world.sandboxUrl,
+    microvm: !!process.env.AGAMEMNON_VMHOST,
     effects,
     tally,
     violations: world.supervisor.violations().slice().reverse(),
@@ -259,6 +262,8 @@ const server = http.createServer(async (req, res) => {
       return res.end("not found");
     }
     res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream", "cache-control": "no-cache" });
+    // Version the page's assets per server start, so a restart never runs a stale cached script.
+    if (rel === "/index.html") return res.end(readFileSync(file, "utf8").replace(/(src|href)="\/(app\.js|styles\.css)"/g, `$1="/$2?v=${BUILD}"`));
     res.end(readFileSync(file));
   } catch (e: any) {
     send(500, { error: e?.message ?? String(e) });

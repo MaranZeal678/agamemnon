@@ -1,0 +1,43 @@
+# Agamemnon microVM host — the "Linux server" of the architecture.
+#
+# An Ubuntu VM on Apple's Virtualization.framework with nested virtualization,
+# which gives it /dev/kvm (needs Apple M3 or later and macOS 15+). Firecracker
+# runs inside it; each sandbox run is one microVM.
+#
+#   limactl start --name=agm-kvm packages/sandbox/vmhost/lima.yaml
+#
+# Locked down on purpose:
+#   - only vmhost's port (7801) is forwarded, and only to the Mac's 127.0.0.1;
+#     every other guest port is ignored (no automatic port forwarding)
+#   - only this directory is mounted, read-only (not the whole home directory)
+#   - no container runtime
+vmType: vz
+nestedVirtualization: true
+cpus: 4
+memory: "4GiB"
+disk: "20GiB"
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+mounts:
+  - location: "~/Desktop/Agamemnon/packages/sandbox/vmhost"
+    writable: false
+containerd:
+  system: false
+  user: false
+portForwards:
+  - guestIP: "127.0.0.1"
+    guestPort: 7801
+    hostIP: "127.0.0.1"
+    hostPort: 7801
+  - guestPortRange: [1, 65535]
+    ignore: true
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y --no-install-recommends squashfs-tools e2fsprogs curl ca-certificates
+      usermod -aG kvm "{{.User}}" || true

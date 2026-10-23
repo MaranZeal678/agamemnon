@@ -21,3 +21,6 @@ export * from "./agamemnon-bridge.ts";
 export * from "./runtimes/base.runtime.ts";
 export { QuickJSRuntime } from "./runtimes/quickjs.runtime.ts";
 export { WorkerThreadRuntime } from "./runtimes/worker.runtime.ts";
+export { MicroVmRuntime, microVmFromEnv, type MicroVmOptions } from "./runtimes/microvm.runtime.ts";
+export * from "./server.ts";
+export * from "./client.ts";

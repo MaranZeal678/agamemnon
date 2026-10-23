@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { openBroker, startBroker, hashToken, newToken, type Broker } from "@agamemnon/broker";
-import { SandboxSupervisor, BrokerProposalBridge } from "@agamemnon/sandbox";
+import { SandboxSupervisor, BrokerProposalBridge, createSandboxServer, brokerAuthenticator } from "@agamemnon/sandbox";
 import { startMocks, REPO, type Mocks } from "./mocks.ts";
 
 /**
@@ -46,6 +46,7 @@ export const DB_URL = withDb(ADMIN_URL, DB);
 const SVC_URL = `postgres://${SVC}:${SVC_PW}@${HOSTPORT}/${DB}`;
 
 export const BROKER_PORT = Number(process.env.LARKSPUR_BROKER_PORT ?? 7710);
+export const SANDBOX_PORT = Number(process.env.LARKSPUR_SANDBOX_PORT ?? BROKER_PORT + 1);
 
 export const MERCHANTS = [
   { id: "bloom-botanicals", name: "Bloom Botanicals", plan: "Growth" },
@@ -75,6 +76,8 @@ export interface World {
   payments: Map<string, number>;
   tokens: Record<string, string>;
   consoleUrl: string;
+  /** The sandbox REST API (agents create and run sandboxes with their broker token). */
+  sandboxUrl: string;
   workspace: string;
   outbox: string;
   epoch: number;
@@ -235,6 +238,8 @@ export async function bootWorld(): Promise<World> {
 
   const bridge = new BrokerProposalBridge(broker, { agent: "sandbox-runtime", connection: "larkspur" });
   const supervisor = new SandboxSupervisor({ bridge, fetch: mocks.sandboxFetch });
+  const sandboxApi = createSandboxServer({ supervisor, authenticate: brokerAuthenticator(broker), allowTenant: (_c, t) => MERCHANTS.some((m) => m.id === t) });
+  await new Promise<void>((r) => sandboxApi.listen(SANDBOX_PORT, "127.0.0.1", () => r()));
 
   return {
     broker,
@@ -245,12 +250,15 @@ export async function bootWorld(): Promise<World> {
     payments,
     tokens,
     consoleUrl: `${url}/console`,
+    sandboxUrl: `http://127.0.0.1:${SANDBOX_PORT}`,
     workspace,
     outbox,
     epoch,
     async close() {
       server.closeAllConnections();
+      sandboxApi.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));
+      await new Promise<void>((r) => sandboxApi.close(() => r()));
       await mocks.close();
       await pool.end();
       broker.store.close();

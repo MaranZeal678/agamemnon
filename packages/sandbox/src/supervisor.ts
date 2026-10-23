@@ -12,6 +12,7 @@
 import { IpcBroker, type SandboxRecord } from "./ipc-broker.ts";
 import { QuickJSRuntime } from "./runtimes/quickjs.runtime.ts";
 import { WorkerThreadRuntime } from "./runtimes/worker.runtime.ts";
+import { MicroVmRuntime, microVmFromEnv } from "./runtimes/microvm.runtime.ts";
 import { RuntimeUnavailable, type ISandboxRuntime, type RunLimits } from "./runtimes/base.runtime.ts";
 import { CapabilityFlags, DEFAULT_LIMITS, type AgamemnonProposalBridge, type ISandboxSupervisor, type MiniSandboxConfig, type PolicyViolation, type ProposalOutcome, type RuntimeKind, type SandboxExecutionResult } from "./types.ts";
 
@@ -55,8 +56,11 @@ export function createRuntime(kind: RuntimeKind): ISandboxRuntime {
       return new QuickJSRuntime();
     case "worker-thread":
       return new WorkerThreadRuntime();
-    case "microvm-adapter":
-      throw new RuntimeUnavailable(kind, "needs a Linux/KVM host (Firecracker) and a configured adapter; none is available here");
+    case "microvm-adapter": {
+      const opts = microVmFromEnv();
+      if (!opts) throw new RuntimeUnavailable(kind, "no vmhost configured — set AGAMEMNON_VMHOST and AGAMEMNON_VMHOST_TOKEN (see packages/sandbox/vmhost/README.md)");
+      return new MicroVmRuntime(opts);
+    }
     default:
       throw new RuntimeUnavailable(kind, "unknown runtime");
   }
@@ -100,7 +104,7 @@ export class SandboxSupervisor implements ISandboxSupervisor {
       terminatedReason: null,
     };
     try {
-      await this.#opts.bridge.attach(config.id, config.tenantId);
+      await this.#opts.bridge.attach(config.id, config.tenantId, config.owner);
     } catch (e) {
       runtime.dispose();
       throw e;
@@ -144,9 +148,24 @@ export class SandboxSupervisor implements ISandboxSupervisor {
     return this.#violations;
   }
 
-  status(sandboxId: string): { status: Sandbox["status"]; tenantId: string; tainted: boolean; pendingMessages: number; terminatedReason: string | null } {
+  status(sandboxId: string) {
     const sb = this.#get(sandboxId);
-    return { status: sb.status, tenantId: sb.config.tenantId, tainted: sb.tainted, pendingMessages: sb.inbox.length, terminatedReason: sb.terminatedReason };
+    return {
+      id: sb.config.id,
+      status: sb.status,
+      tenantId: sb.config.tenantId,
+      owner: sb.config.owner ?? null,
+      runtime: sb.config.runtime,
+      grants: sb.config.capabilities.grants,
+      tainted: sb.tainted,
+      pendingMessages: sb.inbox.length,
+      terminatedReason: sb.terminatedReason,
+    };
+  }
+
+  /** Every sandbox this supervisor knows, terminated ones included. */
+  list() {
+    return [...this.#sandboxes.keys()].map((id) => this.status(id));
   }
 
   #get(sandboxId: string): Sandbox {
@@ -182,6 +201,7 @@ function validate(config: MiniSandboxConfig): RunLimits {
   const caps = config.capabilities;
   if (!caps || !Array.isArray(caps.grants)) throw new Error("config.capabilities.grants must be an array");
   for (const g of caps.grants) if (!FLAGS.has(g)) throw new Error(`unknown capability ${JSON.stringify(g)}`);
+  if (config.owner !== undefined && (typeof config.owner !== "string" || !ID.test(config.owner))) throw new Error("config.owner must be a principal name");
   if (caps.allowedDomains !== undefined && (!Array.isArray(caps.allowedDomains) || caps.allowedDomains.some((d) => typeof d !== "string"))) {
     throw new Error("config.capabilities.allowedDomains must be an array of hostnames");
   }

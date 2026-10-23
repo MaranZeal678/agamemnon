@@ -120,46 +120,50 @@ export interface BrokerBridgeOptions {
 export class BrokerProposalBridge implements AgamemnonProposalBridge {
   readonly #broker: Pick<Broker, "engine" | "store">;
   readonly #opts: BrokerBridgeOptions;
-  readonly #tasks = new Map<string, string>();
+  readonly #tasks = new Map<string, { taskId: string; agent: string }>();
 
   constructor(broker: Pick<Broker, "engine" | "store">, opts: BrokerBridgeOptions) {
     this.#broker = broker;
     this.#opts = opts;
   }
 
-  #agent(): Principal {
-    const p = this.#broker.store.principal(this.#opts.agent);
-    if (!p) throw new Error(`broker principal ${this.#opts.agent} is not registered`);
+  #principal(name: string): Principal {
+    const p = this.#broker.store.principal(name);
+    if (!p) throw new Error(`broker principal ${name} is not registered`);
+    if (p.kind === "human") throw new Error(`${name} is a human; sandboxes act as agents`);
     return p;
   }
 
-  #task(sandboxId: string): string {
+  /** The sandbox's broker task, and the agent principal it acts as. */
+  #bound(sandboxId: string): { taskId: string; agent: Principal } {
     const t = this.#tasks.get(sandboxId);
     if (!t) throw new Error(`sandbox ${sandboxId} is not attached to the broker`);
-    return t;
+    return { taskId: t.taskId, agent: this.#principal(t.agent) };
   }
 
   /** Broker task id for a sandbox (for operators and tests). */
   taskOf(sandboxId: string): string | undefined {
-    return this.#tasks.get(sandboxId);
+    return this.#tasks.get(sandboxId)?.taskId;
   }
 
-  async attach(sandboxId: string, tenantId: string): Promise<void> {
-    const task = this.#broker.engine.startTask(this.#agent(), { goal: `mini-sandbox ${sandboxId}`, tenant: tenantId });
-    this.#tasks.set(sandboxId, task.id);
+  async attach(sandboxId: string, tenantId: string, owner?: string): Promise<void> {
+    const agent = owner ?? this.#opts.agent;
+    const task = this.#broker.engine.startTask(this.#principal(agent), { goal: `mini-sandbox ${sandboxId}`, tenant: tenantId });
+    this.#tasks.set(sandboxId, { taskId: task.id, agent });
   }
 
   async detach(sandboxId: string): Promise<void> {
-    const taskId = this.#tasks.get(sandboxId);
-    if (!taskId) return;
+    const t = this.#tasks.get(sandboxId);
+    if (!t) return;
     this.#tasks.delete(sandboxId);
-    await this.#broker.engine.endTask(this.#agent(), taskId);
+    await this.#broker.engine.endTask(this.#principal(t.agent), t.taskId);
   }
 
   async handleSandboxWriteProposal(sandboxId: string, mutation: SandboxMutation, meta?: { provenance?: TrustLabel[] }): Promise<ProposalOutcome> {
     const sql = mutationToSql(mutation);
-    const v = await this.#broker.engine.propose(this.#agent(), {
-      taskId: this.#task(sandboxId),
+    const { taskId, agent } = this.#bound(sandboxId);
+    const v = await this.#broker.engine.propose(agent, {
+      taskId,
       operation: "postgres.sql",
       params: { connection: this.#opts.connection, sql },
       provenance: meta?.provenance,
@@ -169,8 +173,9 @@ export class BrokerProposalBridge implements AgamemnonProposalBridge {
 
   async handleSandboxRead(sandboxId: string, query: { table: string; where?: Record<string, Scalar> }) {
     const sql = selectToSql(query);
-    const v = await this.#broker.engine.propose(this.#agent(), {
-      taskId: this.#task(sandboxId),
+    const { taskId, agent } = this.#bound(sandboxId);
+    const v = await this.#broker.engine.propose(agent, {
+      taskId,
       operation: "postgres.query",
       params: { connection: this.#opts.connection, sql },
     });
@@ -181,8 +186,8 @@ export class BrokerProposalBridge implements AgamemnonProposalBridge {
   async recordViolation(v: PolicyViolation): Promise<void> {
     this.#broker.store.audit({
       kind: "sandbox-violation",
-      actor: this.#opts.agent,
-      taskId: this.#tasks.get(v.sandboxId),
+      actor: this.#tasks.get(v.sandboxId)?.agent ?? this.#opts.agent,
+      taskId: this.#tasks.get(v.sandboxId)?.taskId,
       detail: `mini-sandbox ${v.sandboxId} (tenant ${v.tenantId}) killed: ${v.reason}`,
       data: { syscall: v.syscall },
     });

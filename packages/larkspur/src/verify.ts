@@ -12,6 +12,7 @@
 // Its own database, data dir and broker port: verify never touches a running dashboard.
 process.env.LARKSPUR_DB ??= "larkspur_verify";
 process.env.LARKSPUR_BROKER_PORT ??= "7719";
+process.env.LARKSPUR_SANDBOX_PORT ??= "7718";
 const { bootWorld } = await import("./world.ts");
 const { SCENES } = await import("./scenes.ts");
 
@@ -52,6 +53,10 @@ try {
       headline = r.headline;
     } catch (e: any) {
       outcomes = [`threw: ${e?.message ?? e}`];
+    }
+    if (outcomes.length === 1 && outcomes[0] === "unavailable") {
+      console.log(`○ ${pad(s.id, 22)} skipped — ${headline}`);
+      continue;
     }
     const ok = JSON.stringify(outcomes) === JSON.stringify(s.expect);
     if (!ok) failed++;

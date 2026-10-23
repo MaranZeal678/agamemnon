@@ -61,7 +61,7 @@ time as the broker's suite (they share that database).
 
 ## Honest limits
 
-- **Not hard preemption.** The deadline is checked between bytecodes and inside
+- **QuickJS tier: not hard preemption.** The deadline is checked between bytecodes and inside
   the regex engine. One bulk native call can overrun it by seconds, and a
   synchronous `while (true) {}` holds the host's event loop until its deadline
   (async spins are sliced and yield). The fix is hosting each enclave in a
@@ -69,7 +69,9 @@ time as the broker's suite (they share that database).
 - **QuickJS lets a non-configurable global be redefined**, so a guest can
   replace its own `db` object. Harmless — no authority lives there — but the
   surface is not tamper-proof.
-- **`worker-thread` and `microvm-adapter` are refused**, not implemented: a
-  Node worker has the host's full authority, and Firecracker needs Linux/KVM.
-- **No Python** (Pyodide is the likely route).
+- **`worker-thread` is refused**: a Node worker has the host's full authority.
+- **The microVM tier** (`microvm-adapter`: Firecracker on KVM, Python, hard
+  deadlines) needs a KVM host — see [vmhost/README.md](vmhost/README.md) for
+  the architecture, `make vm-check`, and its own limits (no jailer yet, ~4 s
+  boot under nested virtualization).
 - **`api.fetch` has no DNS-rebinding defence** — allowlist names you control.

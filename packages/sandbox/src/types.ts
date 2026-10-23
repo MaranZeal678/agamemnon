@@ -67,6 +67,8 @@ export interface MiniSandboxConfig {
   runtime: RuntimeKind;
   /** Optional swarm role ("research", "coder", "audit") — a label, not a permission. */
   role?: string;
+  /** Broker principal the sandbox acts as (the agent that created it). Default: the bridge's own. */
+  owner?: string;
 }
 
 /** Defaults the supervisor applies when a config leaves a limit out. */
@@ -151,8 +153,8 @@ export interface ISandboxSupervisor {
 
 /** Turns sandbox requests into Agamemnon effects. The only path to the world. */
 export interface AgamemnonProposalBridge {
-  /** Bind a sandbox to a broker task scoped to its tenant (called on spawn). */
-  attach(sandboxId: string, tenantId: string): Promise<void>;
+  /** Bind a sandbox to a broker task scoped to its tenant, acting as `owner` if given (called on spawn). */
+  attach(sandboxId: string, tenantId: string, owner?: string): Promise<void>;
   /** End the sandbox's broker task (called on terminate). */
   detach(sandboxId: string): Promise<void>;
   handleSandboxWriteProposal(sandboxId: string, mutation: SandboxMutation, meta?: { provenance?: TrustLabel[] }): Promise<ProposalOutcome>;

@@ -117,9 +117,11 @@ denial memory robust to rewordings.
   between bytecodes: one bulk native call (a huge `Array.fill`, GC thrash at
   the memory cap) can overrun it by seconds, and a synchronous infinite loop
   holds the host event loop until its deadline. Hard preemption needs the
-  enclave hosted in a worker that can be terminated. `worker-thread` and
-  `microvm-adapter` are refused, not implemented. Sandbox `api.fetch` is an
-  exact-hostname allowlist with no DNS-rebinding defence.
+  enclave hosted in a worker that can be terminated. `worker-thread` is
+  refused. The microVM tier (Firecracker on KVM, Python, hard deadlines —
+  `packages/sandbox/vmhost`) runs Firecracker without `jailer` yet and boots in
+  ~4 s under nested virtualization. Sandbox `api.fetch` is an exact-hostname
+  allowlist with no DNS-rebinding defence.
 - **The packages run from the repository** on Node 24 (native TypeScript); they
   are not published to npm yet.
 
