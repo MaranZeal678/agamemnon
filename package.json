@@ -6,6 +6,7 @@
   "workspaces": [
     "packages/kernel",
     "packages/broker",
+    "packages/sandbox",
     "packages/agamemnon-mcp",
     "packages/hooks",
     "packages/agamemnon-cli",

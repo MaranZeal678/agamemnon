@@ -1,0 +1,27 @@
+{
+  "name": "@agamemnon/sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agamemnon mini-sandboxes — QuickJS-Wasm enclaves whose only way to touch the world is an Agamemnon proposal.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agamemnon/broker": "*",
+    "@agamemnon/kernel": "*",
+    "quickjs-emscripten": "^0.32.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
