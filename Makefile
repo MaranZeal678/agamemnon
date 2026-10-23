@@ -12,7 +12,7 @@ CONVEX := cd $(AGA) && PATH="$(NODE24):$$PATH" CONVEX_AGENT_MODE=anonymous npx c
 .DEFAULT_GOAL := help
 .PHONY: help gen-creds db-setup seed-db agent-env setup convex-dev convex-env \
         seed-policy provision agent-protected agent-unprotected reset verify \
-        test psql principals verify-e2e broker test-all bench guards
+        test psql principals verify-e2e broker test-all bench guards larkspur larkspur-verify
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -102,16 +102,24 @@ psql: ## Open psql on the meridian database as the app role
 ## ── Gen 2: the effect-typed reference monitor ───────────────────────────────
 BROKER_NODE := PATH="$(NODE24):$$PATH" NODE_NO_WARNINGS=1 node
 
+larkspur: ## Larkspur demo dashboard (Gen 2 + mini-sandboxes) on http://127.0.0.1:5180 — needs local Postgres
+	@$(BROKER_NODE) packages/larkspur/src/server.ts
+
+larkspur-verify: ## Run every Larkspur scene against the real broker and check Agamemnon's decisions
+	@$(BROKER_NODE) packages/larkspur/src/verify.ts
+
 broker: ## Run the Gen-2 broker (http://127.0.0.1:7700/console; first run writes an admin token to ~/.agamemnon)
 	@$(BROKER_NODE) packages/broker/src/main.ts
 
-test-all: ## Every suite: kernel, policy, broker (live Postgres), MCP, hooks, CLI
+test-all: ## Every suite: kernel, policy, broker (live Postgres), sandbox, MCP, hooks, CLI, Larkspur e2e
 	@cd packages/kernel && npx vitest run
 	@cd $(AGA) && npx vitest run
 	@cd packages/broker && PATH="$(NODE24):$$PATH" npx vitest run
+	@cd packages/sandbox && PATH="$(NODE24):$$PATH" npx vitest run
 	@cd packages/agamemnon-mcp && PATH="$(NODE24):$$PATH" npx vitest run
 	@cd packages/hooks && PATH="$(NODE24):$$PATH" npx vitest run
 	@cd packages/agamemnon-cli && PATH="$(NODE24):$$PATH" npx vitest run
+	@$(BROKER_NODE) packages/larkspur/src/verify.ts
 
 bench: ## Agent Incident Replay Bench → bench/results/scorecard.{json,md}
 	@$(BROKER_NODE) bench/run.ts

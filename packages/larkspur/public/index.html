@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Larkspur Operations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <aside class="side">
+      <div class="brand">
+        <img src="/icon.svg" alt="" width="28" height="28" />
+        <div>
+          <div class="brand-name">Larkspur</div>
+          <div class="brand-sub">Commerce infrastructure for developers</div>
+        </div>
+      </div>
+      <nav id="nav">
+        <a href="#/overview" data-page="overview">Overview</a>
+        <a href="#/runbook" data-page="runbook">Agent runbook</a>
+        <a href="#/decisions" data-page="decisions">Decisions <span class="badge" id="badge-decisions"></span></a>
+        <a href="#/sandboxes" data-page="sandboxes">Sandboxes <span class="new">Gen 2</span></a>
+        <a href="#/activity" data-page="activity">Activity</a>
+        <a href="#/operators" data-page="operators">Operators</a>
+      </nav>
+      <div class="side-foot">
+        <div class="guard-pill" id="guard-pill"><span class="dot"></span> Guarded by Agamemnon</div>
+        <p>Every agent and plugin here can only <em>propose</em>. The broker holds the only credentials.</p>
+        <p class="fine">Fictional company. Stripe, GitHub, Datadog and shipping APIs are local stand-ins; Postgres is real.</p>
+      </div>
+    </aside>
+    <main>
+      <header class="top">
+        <div>
+          <h1 id="page-title">Overview</h1>
+          <p id="page-sub" class="sub"></p>
+        </div>
+        <div class="top-actions">
+          <a class="btn ghost" id="console-link" target="_blank" rel="noopener">Agamemnon console ↗</a>
+          <button class="btn ghost" id="reset">Reset demo</button>
+        </div>
+      </header>
+      <section id="page"></section>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

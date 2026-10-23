@@ -35,6 +35,8 @@ permission files. Always two humans; never auto-approved; never learned.
 |---|---|
 | `packages/kernel` | Pure, dependency-free core: effect model, binding, admission, oversight catalogue, claims, budgets/leases/taint, approvals, receipts, selective revert, shell analysis. Runs in Convex, Node, Electron and the browser. |
 | `packages/broker` | The broker: node:sqlite store, vault, engine, HTTP API, operator console (`/console`) and approval page. Connectors: Postgres, filesystem, GitHub, Terraform, Stripe, email outbox, Datadog/PagerDuty. |
+| `packages/sandbox` | Mini-sandboxes: untrusted code (agent-generated scripts, third-party plugins, agent swarms) in QuickJS-Wasm enclaves with no ambient authority. Capabilities per sandbox; writes become broker proposals on a task scoped to the sandbox's tenant; an ungranted syscall kills the sandbox and is audited. See [packages/sandbox/README.md](../packages/sandbox/README.md). |
+| `packages/larkspur` | Demo: Larkspur, a fictional headless-commerce developer platform, run end to end under the broker and sandboxes — 17 scripted scenes, a dashboard (`make larkspur`) and an e2e check (`make larkspur-verify`). |
 | `packages/agamemnon-mcp` | MCP server (stdio) — `agm_query`, `agm_propose`, `agm_status`, `agm_cancel`, `agm_claim`, task tools. No raw SQL, no credential, no in-client approval. |
 | `packages/hooks` | One pre-tool hook for Claude Code, Cursor, Codex, Gemini CLI and Windsurf. Advisory; fails closed on risky actions. |
 | `packages/agamemnon-cli` | `agamemnon init / sweep / coverage / harden-db / check-migration / receipts verify / admin`. |
@@ -110,6 +112,14 @@ denial memory robust to rewordings.
   roadmap items.
 - **Email** uses an SMTP relay without TLS (local relay / Mailpit) or a file
   transport; production delivery should go through a TLS relay.
+- **Mini-sandboxes are a single-process design.** QuickJS-Wasm gives each
+  sandbox its own linear memory and no host APIs, but a deadline is checked
+  between bytecodes: one bulk native call (a huge `Array.fill`, GC thrash at
+  the memory cap) can overrun it by seconds, and a synchronous infinite loop
+  holds the host event loop until its deadline. Hard preemption needs the
+  enclave hosted in a worker that can be terminated. `worker-thread` and
+  `microvm-adapter` are refused, not implemented. Sandbox `api.fetch` is an
+  exact-hostname allowlist with no DNS-rebinding defence.
 - **The packages run from the repository** on Node 24 (native TypeScript); they
   are not published to npm yet.
 
