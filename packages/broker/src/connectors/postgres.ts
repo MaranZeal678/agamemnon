@@ -192,6 +192,8 @@ interface Analysed {
   setConstColumns?: string[];
   referenced: string[];
   insertRows?: number;
+  /** The parsed INSERT / UPDATE node — read by the write-side tenant check. */
+  stmt?: any;
   fingerprint: string;
   sql: string;
   statementName: string;
@@ -270,7 +272,7 @@ export async function analyse(sql: string, allowlist: string[]): Promise<Analyse
       const setConstColumns = (s.targetList ?? [])
         .filter((t: any) => t?.ResTarget?.val?.A_Const)
         .map((t: any) => String(t.ResTarget.name));
-      return { kind: "update", table, where, set, setConstColumns, referenced, fingerprint, sql: clean, statementName };
+      return { kind: "update", table, where, set, setConstColumns, stmt: s, referenced, fingerprint, sql: clean, statementName };
     }
     case "InsertStmt": {
       requireAllowed();
@@ -278,7 +280,7 @@ export async function analyse(sql: string, allowlist: string[]): Promise<Analyse
       const table = String(s.relation.relname).toLowerCase();
       const values = s.selectStmt?.SelectStmt?.valuesLists;
       const insertRows = Array.isArray(values) ? values.length : undefined;
-      return { kind: "insert", table, insertRows, referenced, fingerprint, sql: clean, statementName };
+      return { kind: "insert", table, insertRows, stmt: s, referenced, fingerprint, sql: clean, statementName };
     }
     case "DropStmt": {
       if (s.removeType !== "OBJECT_TABLE") return { kind: "ddl", referenced, fingerprint, sql: clean, statementName };
@@ -312,6 +314,63 @@ export async function analyse(sql: string, allowlist: string[]): Promise<Analyse
       if (rels.length) requireAllowed();
       return { kind: "ddl", referenced, fingerprint, sql: clean, statementName };
   }
+}
+
+/** Text of a bare literal as `::text` would render it; null for NULL, undefined for anything that is not a literal. */
+function constText(node: any): string | null | undefined {
+  const k = node?.A_Const;
+  if (!k) return undefined;
+  if (k.isnull) return null;
+  if (k.ival) return String(k.ival.ival ?? 0);
+  if (k.fval) return String(k.fval.fval);
+  if (k.sval) return String(k.sval.sval ?? "");
+  if (k.boolval) return String(k.boolval.boolval ?? false);
+  return undefined;
+}
+
+/**
+ * Write-side tenant check: the VALUES an INSERT writes, or the value an UPDATE
+ * assigns to the tenant column, must be a literal equal to the task's tenant.
+ * Anything the parser cannot pin to a literal fails closed. Returns why it is
+ * refused, or null.
+ */
+function foreignTenantWrite(a: Analysed, tcol: string, tenant: string): string | null {
+  const col = tcol.toLowerCase();
+  const s = a.stmt;
+  const assigns = (targetList: any[] | undefined, verb: string): string | null => {
+    for (const t of targetList ?? []) {
+      const r = t?.ResTarget;
+      if (String(r?.name ?? "").toLowerCase() !== col) continue;
+      const v = r.indirection ? undefined : constText(r.val);
+      if (v === undefined) return `${verb} assigns ${tcol} from a non-literal expression — the tenant it writes cannot be verified`;
+      if (v !== tenant) return `${verb} sets ${tcol} to ${v === null ? "NULL" : `"${v}"`} — the rows would move out of tenant "${tenant}"`;
+    }
+    return null;
+  };
+  if (a.kind === "update") return assigns(s?.targetList, "UPDATE");
+  if (a.kind === "insert") {
+    const cols = (s?.cols ?? []).map((c: any) => c?.ResTarget);
+    if (!cols.length) return `INSERT without a column list — name ${tcol} explicitly so the tenant it writes can be verified`;
+    const idx = cols.findIndex((c: any) => String(c?.name ?? "").toLowerCase() === col);
+    if (idx < 0) return `INSERT omits ${tcol} — its value would come from a default, not the task's tenant "${tenant}"`;
+    const values = s.selectStmt?.SelectStmt?.valuesLists;
+    if (!Array.isArray(values)) return `INSERT … SELECT into a tenant-scoped table — the ${tcol} values it writes cannot be verified before execution`;
+    let foreign = 0;
+    for (const [n, row] of values.entries()) {
+      const v = cols[idx].indirection ? undefined : constText(row?.List?.items?.[idx]);
+      if (v === undefined) return `${tcol} in inserted row ${n + 1} is not a literal — the tenant it writes cannot be verified`;
+      if (v !== tenant) foreign++;
+    }
+    if (foreign) return `${foreign.toLocaleString()} inserted row(s) set ${tcol} to a tenant other than "${tenant}"`;
+    const oc = s.onConflictClause;
+    if (oc?.action === "ONCONFLICT_UPDATE") {
+      // The row DO UPDATE changes is whichever existing row conflicts — it can belong to
+      // any tenant, so even an update that leaves ${tcol} alone is refused.
+      return assigns(oc.targetList, "ON CONFLICT DO UPDATE") ?? `ON CONFLICT DO UPDATE would change whichever existing row conflicts, which may belong to a tenant other than "${tenant}"`;
+    }
+    return null;
+  }
+  return null;
 }
 
 export class PostgresConnector implements Connector {
@@ -401,6 +460,8 @@ export class PostgresConnector implements Connector {
           if (scopeTenant && tcol) {
             const foreign = Number((await q(c, `SELECT count(*)::bigint AS n FROM ${ident(tbl)} WHERE (${a.where}) AND ${ident(tcol)}::text IS DISTINCT FROM $1`, [scopeTenant])).rows[0].n);
             if (foreign > 0) rules.push({ name: "cross-tenant", severity: "block", detail: `${foreign.toLocaleString()} matching row(s) belong to a tenant other than "${scopeTenant}"` });
+            const why = foreignTenantWrite(a, tcol, String(scopeTenant));
+            if (why) rules.push({ name: "cross-tenant", severity: "block", detail: why });
           }
           const sample = (await q(c, `SELECT * FROM ${ident(tbl)} WHERE ${a.where} LIMIT 5`)).rows.map((r: any) => this.mask(encodeRow(r), cfg.tables?.[tbl]));
           if (a.kind === "delete") {
@@ -443,6 +504,11 @@ export class PostgresConnector implements Connector {
         }
 
         if (a.kind === "insert") {
+          const tcol = cfg.tables?.[a.table!]?.tenantColumn;
+          if (scopeTenant && tcol) {
+            const why = foreignTenantWrite(a, tcol, String(scopeTenant));
+            if (why) rules.push({ name: "cross-tenant", severity: "block", detail: why });
+          }
           let rows = a.insertRows;
           let fidelity: "exact" | "estimated" = "exact";
           if (rows === undefined) {

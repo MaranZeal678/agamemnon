@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { makeBroker, pgAvailable, resetTestDb, P } from "./helpers.ts";
+import { makeBroker, pgAvailable, resetTestDb, P, q } from "./helpers.ts";
 import { consolePage, approvePage } from "../src/pages.ts";
 
 describe("console pages", () => {
@@ -43,6 +43,72 @@ const PG = await pgAvailable();
     expect(peek.error).toMatch(/another tenant — result withheld/);
     const sub = b.engine.startTask(P(b, "helper-1"), { parentTaskId: t.id, tenant: "99" });
     expect(b.store.task(sub.id)!.tenant).toBe("7"); // a sub-agent cannot widen its tenant
+  });
+
+  it("a tenant-scoped task cannot write rows into, or re-home rows to, another tenant", async () => {
+    const b = makeBroker();
+    const bot = P(b, "support-bot");
+    const t = b.engine.startTask(bot, { goal: "help customer 7", tenant: "7" });
+    const go = (s: string) => b.engine.propose(bot, { taskId: t.id, operation: "postgres.sql", params: sql(s) });
+    const crossTenant = (v: Awaited<ReturnType<typeof go>>) => v.firedRules.find((r) => r.name === "cross-tenant")?.detail;
+
+    const own = await go(`INSERT INTO "orders" ("customer_id","status","amount","note") VALUES (7,'open',1,'mine'), ('7','open',2,'mine')`);
+    expect(own.status).toBe("executed");
+    expect(crossTenant(own)).toBeUndefined();
+
+    const foreign = await go(`INSERT INTO "orders" ("customer_id","status","amount","note") VALUES (8,'open',1,'foreign')`);
+    expect(foreign.status).toBe("blocked");
+    expect(crossTenant(foreign)).toMatch(/1 inserted row\(s\) set customer_id to a tenant other than "7"/);
+
+    const mixed = await go(`INSERT INTO orders (customer_id, status, amount) VALUES (7, 'open', 1), (8, 'open', 1)`);
+    expect(mixed.status).toBe("blocked");
+
+    const omitted = await go(`INSERT INTO orders (status, amount) VALUES ('open', 1)`);
+    expect(omitted.status).toBe("blocked");
+    expect(crossTenant(omitted)).toMatch(/omits customer_id/);
+
+    const noCols = await go(`INSERT INTO orders OVERRIDING SYSTEM VALUE VALUES (999999, 7, 'open', 1, NULL, now())`);
+    expect(noCols.status).toBe("blocked");
+    expect(crossTenant(noCols)).toMatch(/without a column list/);
+
+    const computed = await go(`INSERT INTO orders (customer_id, status, amount) VALUES (7 + 1, 'open', 1)`);
+    expect(computed.status).toBe("blocked");
+    expect(crossTenant(computed)).toMatch(/not a literal/);
+
+    const viaSelect = await go(`INSERT INTO orders (customer_id, status, amount) SELECT customer_id, 'open', 1 FROM orders WHERE customer_id = 8 LIMIT 1`);
+    expect(viaSelect.status).toBe("blocked");
+    expect(crossTenant(viaSelect)).toMatch(/INSERT … SELECT/);
+
+    const rehome = await go(`UPDATE "orders" SET "customer_id" = 8 WHERE "customer_id" = 7 AND "status" = 'open'`);
+    expect(rehome.status).toBe("blocked");
+    expect(crossTenant(rehome)).toMatch(/sets customer_id to "8" — the rows would move out of tenant "7"/);
+
+    const rehomeExpr = await go(`UPDATE orders SET customer_id = customer_id + 1 WHERE customer_id = 7 AND status = 'open'`);
+    expect(rehomeExpr.status).toBe("blocked");
+    expect(crossTenant(rehomeExpr)).toMatch(/non-literal/);
+
+    const upsertRehome = await go(`INSERT INTO orders (id, customer_id, status, amount) OVERRIDING SYSTEM VALUE VALUES (1, 7, 'open', 1) ON CONFLICT (id) DO UPDATE SET customer_id = 8`);
+    expect(upsertRehome.status).toBe("blocked");
+    expect(crossTenant(upsertRehome)).toMatch(/ON CONFLICT DO UPDATE sets customer_id to "8"/);
+
+    const upsertExcluded = await go(`INSERT INTO orders (id, customer_id, status, amount) OVERRIDING SYSTEM VALUE VALUES (1, 7, 'open', 1) ON CONFLICT (id) DO UPDATE SET customer_id = EXCLUDED.customer_id`);
+    expect(upsertExcluded.status).toBe("blocked");
+    expect(crossTenant(upsertExcluded)).toMatch(/non-literal/);
+
+    // order 1 belongs to customer 2: a DO UPDATE that leaves customer_id alone still writes a foreign row
+    const upsertForeignRow = await go(`INSERT INTO orders (id, customer_id, status, amount) OVERRIDING SYSTEM VALUE VALUES (1, 7, 'open', 1) ON CONFLICT (id) DO UPDATE SET note = 'hijacked'`);
+    expect(upsertForeignRow.status).toBe("blocked");
+    expect(crossTenant(upsertForeignRow)).toMatch(/whichever existing row conflicts/);
+
+    const ordinary = await go(`UPDATE orders SET note = 'checked' WHERE customer_id = 7 AND status = 'open' AND note IS NULL`);
+    expect(ordinary.status).toBe("executed");
+    expect(crossTenant(ordinary)).toBeUndefined();
+
+    const n = async (where: string) => Number((await q(`SELECT count(*)::int AS n FROM orders WHERE ${where}`))[0].n);
+    expect(await n("note = 'foreign' OR note = 'hijacked'")).toBe(0);
+    expect(await n("id = 1 AND customer_id <> 7")).toBe(1);
+    expect(await n("note = 'mine' AND customer_id = 7")).toBe(2);
+    expect(await n("customer_id = 7 AND status = 'open' AND note = 'checked'")).toBeGreaterThan(0);
   });
 
   it("reverting a task whose writes another task built on is refused unless forced", async () => {
