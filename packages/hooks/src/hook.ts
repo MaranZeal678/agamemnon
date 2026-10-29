@@ -169,7 +169,10 @@ export async function decide(intent: Intent, opts: { broker?: string; token?: st
 export function respond(agent: Agent, d: HookDecision, write: (s: string) => void, writeErr: (s: string) => void): number {
   const reason = [`Agamemnon: ${d.verdict.toUpperCase()}`, ...d.reasons.map((r) => `- ${r}`), d.reroute ? `Instead: ${d.reroute}` : ""].filter(Boolean).join("\n");
   if (agent === "claude") {
-    write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: d.verdict, permissionDecisionReason: d.verdict === "allow" ? "Agamemnon: no risk found" : reason } }));
+    // "allow" would skip Claude Code's own permission prompt; with no finding,
+    // say nothing and let the user's permission settings decide.
+    if (d.verdict === "allow") return 0;
+    write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: d.verdict, permissionDecisionReason: reason } }));
     return 0;
   }
   if (agent === "cursor") {
