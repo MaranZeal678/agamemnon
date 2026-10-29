@@ -55,6 +55,14 @@ describe("coding-agent hook", () => {
     expect(errs[0]).toMatch(/Agamemnon: DENY/);
   });
 
+  it("stays silent to Claude Code on allow, so its own permission prompts still apply", () => {
+    const lines: string[] = [];
+    expect(respond("claude", { verdict: "allow", reasons: [], source: "local" }, (s) => lines.push(s), () => {})).toBe(0);
+    expect(lines).toEqual([]);
+    expect(respond("claude", { verdict: "ask", reasons: ["x: y"], source: "local" }, (s) => lines.push(s), () => {})).toBe(0);
+    expect(JSON.parse(lines[0]).hookSpecificOutput.permissionDecision).toBe("ask");
+  });
+
   it("fails closed on risky actions when the broker is unreachable", async () => {
     const d = await decide(toIntent("claude", { tool_name: "Bash", tool_input: { command: "git push --force origin main" }, cwd: "/tmp" }), { broker: "http://127.0.0.1:9", token: "agm_agent_x" });
     expect(d.verdict).toBe("deny");
