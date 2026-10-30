@@ -20,6 +20,8 @@ import type { BrokerExtension } from "./extensions.ts";
 
 export { loadExtensions, type BrokerExtension, type PageContext, type RouteContext } from "./extensions.ts";
 
+export { hashToken, newToken } from "./server.ts";
+
 export interface Broker {
   store: Store;
   vault: Vault;

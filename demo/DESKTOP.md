@@ -2,8 +2,8 @@
 
 > **Gen 2** — the broker that guards SQL, files, GitHub, Terraform, payments,
 > email and monitoring for any coding or ops agent — is documented in
-> [GEN2.md](GEN2.md) (`make broker`, `make bench`), with its
-> [threat model](THREAT-MODEL.md). This page covers the desktop demos.
+> [GEN2.md](../docs/GEN2.md) (`make broker`, `make bench`), with its
+> [threat model](../docs/THREAT-MODEL.md). This page covers the desktop demos.
 
 Two separate macOS apps that are **interlinked and genuinely work** (no simulation):
 

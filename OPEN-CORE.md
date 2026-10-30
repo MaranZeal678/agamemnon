@@ -17,6 +17,8 @@ anything.
 | `packages/agamemnon-mcp` | MCP server for agents |
 | `packages/hooks` | Pre-tool hooks for coding agents |
 | `packages/agamemnon-cli` | `init`, `sweep`, `coverage`, `harden-db`, `check-migration`, `receipts verify`, `pending` / `approve` / `deny`, `admin` |
+| `packages/sandbox` | QuickJS-Wasm mini-sandboxes and the Firecracker microVM tier, whose only way out is a broker proposal |
+| `packages/larkspur` | Gen 2 demo company run end to end under the broker and sandboxes |
 | `bench/`, `deploy/`, `docs/` | Agent Incident Replay Bench, Docker files, documentation |
 | `packages/agamemnon`, `packages/meridian` | Gen 1 database guard and its sample application |
 
