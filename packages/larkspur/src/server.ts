@@ -152,7 +152,7 @@ function agamemnon() {
   for (const e of effects) tally[e.status] = (tally[e.status] ?? 0) + 1;
   return {
     mode: engine.mode,
-    consoleUrl: world.consoleUrl,
+    brokerUrl: world.brokerUrl,
     sandboxUrl: world.sandboxUrl,
     microvm: !!process.env.AGAMEMNON_VMHOST,
     effects,
@@ -264,7 +264,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`Larkspur operations   http://127.0.0.1:${PORT}`);
-  console.log(`Agamemnon console     http://127.0.0.1:${BROKER_PORT}/console   (operator tokens are on the dashboard's Operators page)`);
+  console.log(`Agamemnon broker      http://127.0.0.1:${BROKER_PORT}   (approve from the dashboard, /approve/<id>, or "agamemnon approve")`);
 });
 const stop = async () => {
   await world.close().catch(() => {});

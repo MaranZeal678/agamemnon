@@ -10,7 +10,7 @@ Everything runs under Agamemnon Gen 2: no agent or plugin holds a credential;
 they can only **propose**.
 
 ```bash
-make larkspur          # dashboard http://127.0.0.1:5180 · Agamemnon console http://127.0.0.1:7710/console
+make larkspur          # dashboard http://127.0.0.1:5180 · Agamemnon broker http://127.0.0.1:7710
 make larkspur-verify   # run all 17 scenes headless and check every decision (own DB + port; safe while the dashboard runs)
 ```
 

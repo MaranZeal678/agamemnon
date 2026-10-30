@@ -3,11 +3,11 @@
 ## Before you start
 
 1. Postgres running locally, then at the repo root: `make larkspur`
-2. Open http://127.0.0.1:5180 (Larkspur's admin). Optional second window:
-   http://127.0.0.1:7710/console (Agamemnon's own console) — sign in with
-   Dana's token from **Settings → Team & access**.
+2. Open http://127.0.0.1:5180 (Larkspur's admin). Optional: any approval also
+   has its own broker page at http://127.0.0.1:7710/approve/<effect id> — sign
+   in with Dana's token from **Settings → Team & access**.
 3. **Settings → Workspace → Reset workspace** for fresh numbers. (This rotates
-   the console tokens.)
+   the operator tokens.)
 4. You're signed in as **Dana Okafor** (bottom-left). Click her name to switch
    to **Eli** (second approver) or **Priya** (owns the agents; can't approve).
 

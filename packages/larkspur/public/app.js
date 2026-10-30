@@ -626,7 +626,7 @@ function settings() {
       ${S.agents.map((x) => `<tr><td>${esc(x.title)}<span class="sub mono">${esc(x.name)}</span></td><td>Priya Raman</td><td class="muted">None. Proposes through Agamemnon.</td></tr>`).join("")}
       </tbody></table></div>`;
   } else if (tab === "agamemnon") {
-    body = `<div class="card"><div class="card-h"><h3>${ICON.shield} Agamemnon</h3><a class="btn sm" href="${esc(a.consoleUrl)}" target="_blank" rel="noopener">Open console ${ICON.ext}</a></div>
+    body = `<div class="card"><div class="card-h"><h3>${ICON.shield} Agamemnon</h3><a class="btn sm" href="${esc(a.brokerUrl)}" target="_blank" rel="noopener">Open broker ${ICON.ext}</a></div>
       <div class="card-b"><dl style="display:grid;grid-template-columns:200px 1fr;gap:10px 16px;margin:0">
         <dt class="faint">Status</dt><dd style="margin:0"><span class="badge b-ok dot">Connected</span></dd>
         <dt class="faint">Mode</dt><dd style="margin:0">${esc(a.mode === "enforce" ? "Enforce: requests are gated before they run" : a.mode)}</dd>
@@ -638,7 +638,7 @@ function settings() {
       </dl></div></div>`;
   } else {
     body = `<div class="card"><div class="card-h"><h3>Demo workspace</h3></div><div class="card-b grid" style="gap:12px">
-      <p class="muted">Reseeds the database, restarts Agamemnon with a clean history, and issues new console tokens.</p>
+      <p class="muted">Reseeds the database, restarts Agamemnon with a clean history, and issues new operator tokens.</p>
       <div><button class="btn danger" data-reset>Reset workspace</button></div>
       <p class="faint" style="font-size:12.5px">Postgres, Agamemnon and the plugin sandboxes are real. Stripe, GitHub, Datadog and the shipping-rates API are local stand-ins, and email goes to a file.</p>
     </div></div>`;
@@ -760,7 +760,7 @@ document.addEventListener("click", (ev) => {
   else if (t.dataset.tab) location.hash = `#/approvals${t.dataset.tab === "all" ? "?tab=all" : ""}`;
   else if (t.dataset.page) setQuery({ page: t.dataset.page });
   else if (t.hasAttribute("data-reset")) {
-    if (!confirm("Reset the workspace? This reseeds the database and restarts Agamemnon with new console tokens.")) return;
+    if (!confirm("Reset the workspace? This reseeds the database and restarts Agamemnon with new operator tokens.")) return;
     t.disabled = true;
     api("/api/reset", {})
       .then(() => toast("Workspace reset."))

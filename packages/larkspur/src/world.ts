@@ -67,7 +67,7 @@ export interface World {
   pool: pg.Pool;
   payments: Map<string, number>;
   tokens: Record<string, string>;
-  consoleUrl: string;
+  brokerUrl: string;
   /** The sandbox REST API (agents create and run sandboxes with their broker token). */
   sandboxUrl: string;
   workspace: string;
@@ -241,7 +241,7 @@ export async function bootWorld(): Promise<World> {
     pool,
     payments,
     tokens,
-    consoleUrl: `${url}/console`,
+    brokerUrl: url,
     sandboxUrl: `http://127.0.0.1:${SANDBOX_PORT}`,
     workspace,
     outbox,
