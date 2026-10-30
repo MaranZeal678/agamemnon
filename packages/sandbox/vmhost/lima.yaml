@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Agamemnon microVM host — the "Linux server" of the architecture.
 #
 # An Ubuntu VM on Apple's Virtualization.framework with nested virtualization,

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Runs INSIDE the Lima VM (limactl shell agm-kvm -- bash .../setup-guest.sh).
 # Fetches Firecracker and its official CI guest kernel + Ubuntu rootfs, adds
 # the Agamemnon guest agent, and builds a read-only ext4 root filesystem.

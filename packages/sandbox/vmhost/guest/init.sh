@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # PID 1 inside an Agamemnon microVM. Read-only root, scratch space in tmpfs,
 # no network configured (the VM has no NIC). Run the guest agent once, then
 # power off — vmhost tears the VM down either way.

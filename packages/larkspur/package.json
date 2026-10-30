@@ -2,6 +2,13 @@
   "name": "@agamemnon/larkspur",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaranZeal678/agamemnon.git",
+    "directory": "packages/larkspur"
+  },
   "type": "module",
   "description": "Larkspur — a fictional headless-commerce developer platform, run under Agamemnon Gen 2 (broker + mini-sandboxes). Demo only.",
   "engines": {

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Elamaran Elangovan
 /*
  * Larkspur admin — client. Polls /api/state; every action goes to the server,
  * which drives the real Agamemnon broker and mini-sandboxes.
