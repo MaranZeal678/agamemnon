@@ -37,7 +37,7 @@ than stated, that is a bug.
 |---|---|---|
 | Agent bypasses the hook (script, child process, generated code) | Hooks are advisory. The boundary is the credential: the agent holds only `agm_ph_` placeholders, which authenticate nowhere. Placeholder use outside the broker is recorded as a bypass attempt. | Holds only if real credentials are actually removed from the agent's reach — run `agamemnon sweep`, rotate what it finds, and enable your agent's sandbox. |
 | Statement swapped after approval / world changes before execution | Approval is bound to the measured effect hash plus a precondition token; execution re-measures and re-checks atomically (Postgres: inside the transaction). Drift → nothing runs. | Connectors without an atomic precondition (some SaaS APIs) have a small window between check and write; their previews are labelled `rendered` / `estimated` and need more approval. |
-| SQL injection through an agent's statement | libpg_query parse (exactly one statement, allowlisted relations — including DELETE/UPDATE/INSERT targets — forbidden functions, no data-modifying CTEs) **and** database-side layers: READ ONLY measurement, extended protocol, per-request role scoped to the verbs and tables needed. | The Convex Gen-1 path uses a lexical guard instead of libpg_query (WASM cannot load in a mutation); the database-side layers still apply there. |
+| SQL injection through an agent's statement | libpg_query parse (exactly one statement, allowlisted relations — including DELETE/UPDATE/INSERT targets — forbidden functions, no data-modifying CTEs) **and** database-side layers: READ ONLY measurement, extended protocol, per-request role scoped to the verbs and tables needed. | — |
 | Prompt injection via data (tickets, web pages) | Untrusted reads taint the task lineage; private + untrusted + egress (the lethal trifecta) needs a human; untrusted rows are returned as data, never instructions. | Taint is per task lineage, not per value; an agent that launders data through an unlabelled source escapes it. |
 | Approval laundering / rubber-stamping | Approval cards are built from measurements only; agent prose is quarantined; reviewer canaries and rubber-stamp telemetry; approvals carry identity. | Humans can still approve bad things. Canaries measure it; they do not prevent it. |
 | Decomposition across sub-agents, runaway loops | Budgets keyed to the root human and the target object, across all agents; per-minute breaker; denials follow the task lineage. | Denial memory matches exact request shapes — rewordings are not caught (an open classification problem). |
@@ -59,8 +59,8 @@ the webhook, and marked for post-incident review.
 
 - It does not approve inside the agent's client (MCP form elicitation, chat
   prompts): a client hook can answer those automatically.
-- It does not use an LLM to make or loosen a decision. Where a classifier is
-  consulted (Gen-1 Convex path) it can only escalate, and it sees structured
+- It does not use an LLM to make or loosen a decision. The deterministic
+  kernel decides; any model consulted can only escalate, and sees structured
   facts — never row values.
 - It does not claim to undo side effects that already left the building
   (a delivered email, an issued refund). Those are held before they leave, or

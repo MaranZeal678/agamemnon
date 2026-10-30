@@ -11,15 +11,6 @@
   <img src="https://img.shields.io/badge/licence-Apache--2.0-2F6E8C?style=for-the-badge" alt="Apache-2.0">
 </p>
 
-<p align="center">
-  <img src="docs/assets/convex.svg" height="44" alt="Convex">
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/assets/nebius.svg" height="44" alt="Nebius">
-</p>
-
-<p align="center"><b>Gen 1 is built on Convex and Nebius.</b><br>
-<sub>Convex runs the Gen 1 backend. Nebius Token Factory runs every AI model.</sub></p>
-
 ---
 
 ## Why
@@ -101,7 +92,7 @@ flowchart TD
     PV --> BD["2. Bind — hash of the effect + precondition"]
     BD --> AD{{"3. Admit by reversibility<br/>rules · oversight class · budgets · leases · taint"}}
     AD -->|"block"| BLK["Blocked (and remembered)"]
-    AD -->|"needs people"| PARK["Operator console / approval page"]
+    AD -->|"needs people"| PARK["Approval page / CLI"]
     AD -->|"irreversible but deferrable"| HOLD["Held — cancellable window"]
     AD -->|"allow"| EX
     PARK -->|"approved: re-measure, check binding"| EX["Execute under a per-request credential"]
@@ -116,54 +107,41 @@ flowchart TD
 
 | Layer | What we use | What it does here |
 |---|---|---|
-| **Kernel** | TypeScript, zero dependencies | Effect model, binding, admission, oversight catalogue, claim reconciliation, budgets/leases/taint, approvals, receipts, selective revert, shell analysis. Runs unchanged in Convex, Node, Electron and the browser. |
+| **Kernel** | TypeScript, zero dependencies | Effect model, binding, admission, oversight catalogue, claim reconciliation, budgets/leases/taint, approvals, receipts, selective revert, shell analysis. Runs unchanged in Node and the browser. |
 | **Broker** | Node 24 (native TypeScript), `node:sqlite` | Vault (AES-256-GCM; key from env, macOS Keychain or a 0600 file), engine, HTTP API, approval page and an extension point for add-ons. No external database, no build step. |
 | **SQL understanding** | `libpg_query` (the real Postgres parser) | One statement only, allowlisted tables, forbidden functions, no data-modifying CTEs — plus database-side layers: READ ONLY measurement and per-request roles. |
 | **Connectors** | Postgres · filesystem · GitHub · Terraform · Stripe · email outbox · Datadog / PagerDuty | Each implements preview → bind → execute → verify → compensate. |
 | **Agent integrations** | MCP server (stdio) · pre-tool hooks | Hooks for Claude Code, Cursor, Codex, Gemini CLI and Windsurf; MCP tools with no raw SQL and no in-client approvals. |
-| **Gen 1 backend** | Convex (local deployment) | Durable request workflow for the database demo, live queries for its console. |
 | **Database** | PostgreSQL 14 | The production database being protected. |
-| **Risk classifier (Gen 1)** | `Qwen3-30B`, tuned — Nebius Token Factory | Second opinion that can only tighten; sees the query's shape with literals redacted, never row values. |
 | **Approvals** | Approval page `/approve/:id` · `agamemnon pending / approve / deny` | Decide parked effects in a browser or a terminal. The full operator console is a proprietary extension (see [OPEN-CORE.md](OPEN-CORE.md)). |
-| **Desktop apps** | Electron | Self-contained macOS demos running the same kernel. |
+| **Mini-sandboxes** | QuickJS-Wasm · Firecracker microVMs on KVM | Untrusted code (agent scripts, plugins, swarms) runs with no ambient authority; capabilities per sandbox; every write becomes a broker proposal scoped to its tenant. |
 
 ### Repository layout
 
 ```
 packages/kernel/            the pure core shared by everything below
-packages/broker/            THE PRODUCT (Gen 2): broker, connectors, approval page  ->  http://127.0.0.1:7700
+packages/broker/            the broker: connectors, approval page, extension point  ->  http://127.0.0.1:7700
+packages/sandbox/           mini-sandboxes: QuickJS-Wasm enclaves + Firecracker microVM tier
 packages/agamemnon-mcp/     MCP server for agents
 packages/hooks/             pre-tool hook for coding agents
-packages/agamemnon-cli/     agamemnon init · sweep · coverage · harden-db · check-migration · receipts
+packages/agamemnon-cli/     agamemnon init · sweep · coverage · harden-db · check-migration · receipts · approvals
+packages/larkspur/          demo: a fictional company run end to end under the broker and sandboxes
 bench/                      Agent Incident Replay Bench
 
-packages/agamemnon/         Gen 1: the database guard on Convex + Nebius
-  convex/    backend: rules, review workflow, backups, undo
-  adapter/   the shim the agent imports (never holds a password)
-  console/   the operator console  ->  http://localhost:5174
-  eval/      labelled test set and classifier scoreboard
-packages/meridian/          sample application protected by Gen 1 (web, db, agent)
-
-packages/agamemnon-guard/   DESKTOP: the guard app (:7420)
-packages/northwind-bank/    DESKTOP: a bank back-office that talks only to the guard
-packages/halcyon/           DESKTOP: all-in-one app with installable guard + embedded terminal
-
 deploy/      Dockerfile + compose (Postgres, broker, Mailpit)
-docs/        GEN2.md · THREAT-MODEL.md · RUN-AGAMEMNON.md
+docs/        GEN2.md · THREAT-MODEL.md
 ```
 
 ---
 
 ## How to run
 
-### Gen 2 — the broker
-
 Requirements: Node 24. PostgreSQL 14 on `127.0.0.1:5432` for the database connector and tests.
 
 ```bash
 npm install
 make broker      # http://127.0.0.1:7700 — first run writes an admin token to ~/.agamemnon
-make test-all    # kernel, policy, broker (live Postgres), MCP, hooks, CLI
+make test-all    # every suite (broker and sandbox tests use live Postgres)
 make bench       # Agent Incident Replay Bench -> bench/results/scorecard.{json,md}
 ```
 
@@ -199,51 +177,16 @@ Docker (rules-only, no LLM key): `docker compose -f deploy/docker-compose.yml up
 Full API, connectors and limits: **[docs/GEN2.md](docs/GEN2.md)** ·
 what the broker defends and doesn't: **[docs/THREAT-MODEL.md](docs/THREAT-MODEL.md)**.
 
-### Gen 1 — the database guard (Convex + Nebius + Postgres)
-
-Requirements: Node 24, PostgreSQL 14 on `127.0.0.1:5432`, and a Nebius Token Factory key.
-Step-by-step first-time setup is in [SETUP.md](SETUP.md).
+### Mini-sandboxes and the Larkspur demo
 
 ```bash
-cp .env.example .env     # then paste your Nebius key into NEBIUS_API_KEY=
-make setup               # generate DB creds + principal tokens, create the database + roles, seed it
-make convex-dev          # start the local Convex backend (leave running)
-make provision           # push env + policy + principals into Convex
-make up                  # start the console and the sample web app
+make larkspur          # a fictional commerce platform run under the broker -> http://127.0.0.1:5180
+make larkspur-verify   # run all 17 scenes headless and check every decision
 ```
 
-Open the console at `http://localhost:5174` and sign in with an operator token from `.env`
-(for example `AGAMEMNON_OPERATOR_ALICE_TOKEN`). Other useful targets:
-
-```bash
-make act1 / act2 / act3  # unprotected wipe · blocked · parked, approved and undone
-make verify-e2e          # live end-to-end hardening check (21 checks)
-make test                # kernel + policy unit tests
-make eval                # score the classifiers (console Eval tab)
-make reset               # restore a clean database state (the audit chain is kept)
-make help                # list every target
-```
-
-### Desktop apps (macOS, no backend setup)
-
-```bash
-open "/Applications/Halcyon.app"              # all-in-one app
-
-# or the two interlinked apps:
-open "/Applications/Agamemnon.app"            # start the guard first (:7420)
-open "/Applications/Northwind Financial.app"  # then the bank back-office
-```
-
-Query the guard directly to see the reasoning behind a decision:
-
-```bash
-curl -s -X POST http://127.0.0.1:7420/guard/propose -H 'content-type: application/json' \
-  -d '{"selector":{"all":true},"actor":"rogue-agent"}' \
-  | jq '{decision, records: .measuredRows, why_the_classifier: .classifier.rationale,
-         why_the_rules: [.firedRules[] | (.name + " — " + .detail)]}'
-```
-
-Full commands and output are in [docs/RUN-AGAMEMNON.md](docs/RUN-AGAMEMNON.md).
+The microVM tier needs a Linux host with KVM; on a Mac it runs in a Lima VM:
+`make vm-up && make vm-setup && make vmhost`, then `make vm-check`. See
+[packages/sandbox/README.md](packages/sandbox/README.md).
 
 ---
 
