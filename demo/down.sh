@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Stop demo services started by up.sh (Convex, Meridian web, console).
 # Leaves Postgres (a system service) alone.
 set -uo pipefail

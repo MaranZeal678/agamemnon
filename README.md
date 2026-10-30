@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/licence-proprietary%20%C2%B7%20all%20rights%20reserved-8C2F1E?style=for-the-badge" alt="Proprietary">
+  <img src="https://img.shields.io/badge/licence-Apache--2.0-2F6E8C?style=for-the-badge" alt="Apache-2.0">
 </p>
 
 <p align="center">
@@ -117,21 +117,21 @@ flowchart TD
 | Layer | What we use | What it does here |
 |---|---|---|
 | **Kernel** | TypeScript, zero dependencies | Effect model, binding, admission, oversight catalogue, claim reconciliation, budgets/leases/taint, approvals, receipts, selective revert, shell analysis. Runs unchanged in Convex, Node, Electron and the browser. |
-| **Broker** | Node 24 (native TypeScript), `node:sqlite` | Vault (AES-256-GCM; key from env, macOS Keychain or a 0600 file), engine, HTTP API, operator console and approval page. No external database, no build step. |
+| **Broker** | Node 24 (native TypeScript), `node:sqlite` | Vault (AES-256-GCM; key from env, macOS Keychain or a 0600 file), engine, HTTP API, approval page and an extension point for add-ons. No external database, no build step. |
 | **SQL understanding** | `libpg_query` (the real Postgres parser) | One statement only, allowlisted tables, forbidden functions, no data-modifying CTEs — plus database-side layers: READ ONLY measurement and per-request roles. |
 | **Connectors** | Postgres · filesystem · GitHub · Terraform · Stripe · email outbox · Datadog / PagerDuty | Each implements preview → bind → execute → verify → compensate. |
 | **Agent integrations** | MCP server (stdio) · pre-tool hooks | Hooks for Claude Code, Cursor, Codex, Gemini CLI and Windsurf; MCP tools with no raw SQL and no in-client approvals. |
 | **Gen 1 backend** | Convex (local deployment) | Durable request workflow for the database demo, live queries for its console. |
 | **Database** | PostgreSQL 14 | The production database being protected. |
 | **Risk classifier (Gen 1)** | `Qwen3-30B`, tuned — Nebius Token Factory | Second opinion that can only tighten; sees the query's shape with literals redacted, never row values. |
-| **Console** | Broker console (self-contained) · React + Vite (Gen 1) | Approvals, oversight queue, claims, holds, artifacts, fleet, audit & receipts. |
+| **Approvals** | Approval page `/approve/:id` · `agamemnon pending / approve / deny` | Decide parked effects in a browser or a terminal. The full operator console is a proprietary extension (see [OPEN-CORE.md](OPEN-CORE.md)). |
 | **Desktop apps** | Electron | Self-contained macOS demos running the same kernel. |
 
 ### Repository layout
 
 ```
 packages/kernel/            the pure core shared by everything below
-packages/broker/            THE PRODUCT (Gen 2): broker, connectors, console  ->  http://127.0.0.1:7700
+packages/broker/            THE PRODUCT (Gen 2): broker, connectors, approval page  ->  http://127.0.0.1:7700
 packages/agamemnon-mcp/     MCP server for agents
 packages/hooks/             pre-tool hook for coding agents
 packages/agamemnon-cli/     agamemnon init · sweep · coverage · harden-db · check-migration · receipts
@@ -162,7 +162,7 @@ Requirements: Node 24. PostgreSQL 14 on `127.0.0.1:5432` for the database connec
 
 ```bash
 npm install
-make broker      # http://127.0.0.1:7700/console — first run writes an admin token to ~/.agamemnon
+make broker      # http://127.0.0.1:7700 — first run writes an admin token to ~/.agamemnon
 make test-all    # kernel, policy, broker (live Postgres), MCP, hooks, CLI
 make bench       # Agent Incident Replay Bench -> bench/results/scorecard.{json,md}
 ```
@@ -181,6 +181,18 @@ agm admin target --system postgres --resource connection:app --env prod \
 agm init --agents claude,cursor --token <agent token>   # hooks + MCP + deny agents read access to secrets
 agm sweep                                               # credentials an agent could use to go around the broker
 ```
+
+Decide parked effects from a terminal (or open the approval link the agent is given):
+
+```bash
+export AGAMEMNON_OPERATOR_TOKEN=<alice's token>
+agm pending                         # what is waiting, its reversibility, approvals so far
+agm approve <effect id> --note "checked the preview"
+agm deny <effect id> --note "wrong table"
+```
+
+Add-ons such as the Agamemnon Enterprise operator console load as broker extensions:
+`AGAMEMNON_EXTENSIONS=<module>[,<module>…] make broker` (see `packages/broker/src/extensions.ts`).
 
 Docker (rules-only, no LLM key): `docker compose -f deploy/docker-compose.yml up`.
 
@@ -253,16 +265,16 @@ listed in [docs/GEN2.md](docs/GEN2.md#honest-limits-read-before-relying-on-it).
 
 ## Licence
 
-**Proprietary. Copyright (c) 2026 Elamaran Elangovan. All rights reserved.**
+**Open-core.** Agamemnon is licensed under the [Apache License 2.0](LICENSE):
+the kernel, broker and connectors, MCP server, hooks, CLI, bench, deploy files
+and docs. Copyright 2026 Elamaran Elangovan.
 
-This repository is published for demonstration, evaluation and portfolio review
-only. **Publication is not a licence.** You may read it and link to it. You may
-not copy, modify, redistribute, deploy, or use it or any part of it in another
-product, service, dataset or model-training corpus without prior written
-permission.
+The operator consoles and desktop apps are proprietary and carry their own
+LICENSE files: `packages/agamemnon-guard`, `packages/halcyon`,
+`packages/desktop`, `packages/northwind-bank`, `packages/console` and
+`packages/agamemnon/console`. What is open, what is not, and what will always
+stay open: [OPEN-CORE.md](OPEN-CORE.md). Attribution: [NOTICE](NOTICE). The
+Agamemnon name and logo: [TRADEMARKS.md](TRADEMARKS.md).
 
-Every source file carries a copyright notice and a reference identifier; these
-must not be removed or altered. Full terms in [LICENSE](LICENSE); summary in
-[NOTICE](NOTICE).
-
-Licensing enquiries: elango@squareshift.co
+Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · security reports:
+[SECURITY.md](SECURITY.md) · contact: contact@elamaran.co

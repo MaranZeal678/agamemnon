@@ -34,19 +34,19 @@ permission files. Always two humans; never auto-approved; never learned.
 | Package | What it is |
 |---|---|
 | `packages/kernel` | Pure, dependency-free core: effect model, binding, admission, oversight catalogue, claims, budgets/leases/taint, approvals, receipts, selective revert, shell analysis. Runs in Convex, Node, Electron and the browser. |
-| `packages/broker` | The broker: node:sqlite store, vault, engine, HTTP API, operator console (`/console`) and approval page. Connectors: Postgres, filesystem, GitHub, Terraform, Stripe, email outbox, Datadog/PagerDuty. |
+| `packages/broker` | The broker: node:sqlite store, vault, engine, HTTP API, approval page (`/approve/:id`) and an extension point for add-ons such as the operator console. Connectors: Postgres, filesystem, GitHub, Terraform, Stripe, email outbox, Datadog/PagerDuty. |
 | `packages/sandbox` | Mini-sandboxes: untrusted code (agent-generated scripts, third-party plugins, agent swarms) in QuickJS-Wasm enclaves with no ambient authority. Capabilities per sandbox; writes become broker proposals on a task scoped to the sandbox's tenant; an ungranted syscall kills the sandbox and is audited. See [packages/sandbox/README.md](../packages/sandbox/README.md). |
 | `packages/larkspur` | Demo: Larkspur, a fictional headless-commerce developer platform, run end to end under the broker and sandboxes — 17 scripted scenes, a dashboard (`make larkspur`) and an e2e check (`make larkspur-verify`). |
 | `packages/agamemnon-mcp` | MCP server (stdio) — `agm_query`, `agm_propose`, `agm_status`, `agm_cancel`, `agm_claim`, task tools. No raw SQL, no credential, no in-client approval. |
 | `packages/hooks` | One pre-tool hook for Claude Code, Cursor, Codex, Gemini CLI and Windsurf. Advisory; fails closed on risky actions. |
-| `packages/agamemnon-cli` | `agamemnon init / sweep / coverage / harden-db / check-migration / receipts verify / admin`. |
+| `packages/agamemnon-cli` | `agamemnon init / sweep / coverage / harden-db / check-migration / receipts verify / pending / approve / deny / admin`. |
 | `bench/` | Agent Incident Replay Bench — 17 rebuilt agent incidents + 5 benign controls, scored on effects. |
 | `packages/agamemnon` | Gen 1 (Convex + Postgres demo), now hardened and running the shared kernel. |
 
 ## Run it
 
 ```bash
-make broker                       # http://127.0.0.1:7700/console — first run writes ~/.agamemnon/bootstrap-admin.token
+make broker                       # http://127.0.0.1:7700 — first run writes ~/.agamemnon/bootstrap-admin.token
 make test-all                     # every suite (broker tests need local Postgres)
 make bench                        # bench/results/scorecard.{json,md}
 ```

@@ -1,4 +1,6 @@
-# Agamemnon Gen-2 stack — Copyright (c) 2026 Elamaran Elangovan. All rights reserved. ref: AGMN-BOZW-F6BTKX-X3LAO
+# Agamemnon Gen-2 stack
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 #
 #   docker compose -f deploy/docker-compose.yml up
 #

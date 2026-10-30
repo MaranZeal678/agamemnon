@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Elamaran Elangovan
 -- Meridian Freight — demo seed.
 -- 412,000 active loads. All but ~1,200 have a matching booking, so ~1,200 are
 -- genuine orphans. Deleting orphans (~1,200/night) is Dispatch Copilot's normal

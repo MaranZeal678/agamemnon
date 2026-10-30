@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Register Agamemnon's principals in the local Convex deployment:
 #   - the agent (dispatch-copilot) and the human who owns it
 #   - console operators: alice + bob (approvers), maran (admin)

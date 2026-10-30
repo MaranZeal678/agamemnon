@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Agamemnon — a write-path guardrail for AI agents. Self-contained demo desktop app.",
   "productName": "Agamemnon",
-  "author": "SquareShift",
-  "license": "MIT",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "main": "electron/main.js",
   "scripts": {

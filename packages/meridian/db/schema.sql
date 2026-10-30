@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Elamaran Elangovan
 -- Meridian Freight — operational schema.
 -- Two tables: loads (freight jobs) and bookings (confirmed carrier commitments).
 -- An "orphaned" load is an active load with no matching booking.

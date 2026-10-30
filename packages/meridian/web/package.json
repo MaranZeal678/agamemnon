@@ -2,6 +2,9 @@
   "name": "@meridian/web",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "repository": { "type": "git", "url": "git+https://github.com/MaranZeal678/agamemnon.git", "directory": "packages/meridian/web" },
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",

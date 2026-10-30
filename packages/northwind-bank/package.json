@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Northwind Financial — bank back-office. Reads and deletes account records through Agamemnon.",
   "productName": "Northwind Financial",
-  "author": "SquareShift",
-  "license": "MIT",
+  "author": "Elamaran Elangovan <contact@elamaran.co>",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "main": "electron/main.js",
   "scripts": {

@@ -1,5 +1,6 @@
 /* GENERATED from packages/kernel by scripts/build-guards.mjs — do not edit.
- * Agamemnon — Copyright (c) 2026 Elamaran Elangovan. All rights reserved. ref: AGMN-BOZW-F6BTKX-X3LAO */
+ * SPDX-License-Identifier: Apache-2.0
+ * Copyright 2026 Elamaran Elangovan */
 "use strict";
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;

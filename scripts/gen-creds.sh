@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Elamaran Elangovan
 # Fill any EMPTY password/URL fields in .env with machine-generated values.
 # Idempotent: never overwrites a value that is already set. Never prints secrets.
 set -euo pipefail
