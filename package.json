@@ -9,6 +9,8 @@
   "workspaces": [
     "packages/kernel",
     "packages/broker",
+    "packages/sandbox",
+    "packages/larkspur",
     "packages/agamemnon-mcp",
     "packages/hooks",
     "packages/agamemnon-cli",

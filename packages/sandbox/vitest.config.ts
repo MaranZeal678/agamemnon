@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Elamaran Elangovan
+
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: { include: ["src/__tests__/**/*.test.ts"], environment: "node", testTimeout: 30000, hookTimeout: 60000, fileParallelism: false },
+});

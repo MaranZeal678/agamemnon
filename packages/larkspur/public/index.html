@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Elamaran Elangovan -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Larkspur</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main>
+      <header class="topbar">
+        <div class="crumbs" id="crumbs"></div>
+        <label class="search" for="q">
+          <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          <input id="q" placeholder="Search orders, customers, payments" autocomplete="off" />
+          <kbd>/</kbd>
+        </label>
+        <span class="testmode" title="Stripe, GitHub, Datadog and the shipping API are simulated; Postgres and Agamemnon are real">Test mode</span>
+      </header>
+      <div id="content" class="content"></div>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
